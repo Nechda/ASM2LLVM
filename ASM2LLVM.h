@@ -36,19 +36,17 @@ class ASM2LLVMBuilder
     private:
         vector<Command> commandList;
 
-        ui32 currentBB = 0;
 
         struct BlockInfo
         {
             BasicBlock* bb = nullptr;
-            ui32 sLine;
-            ui32 eLine;
-            i32 funcIndex;
-            BlockInfo* nextInfoBlock;
+            ui32 sLine = 0;
+            ui32 eLine = 0;
+            i32 funcIndex = 0;
         };
-
-        map<ui32, BlockInfo> bbArray;
-        vector<pair<Function*,ui32>> funcArray; // хочу, чтоб второй аргумент в паре давал номер первого блока в функции
+        ui32 currBBIndex = 0;
+        vector<BlockInfo> bbArray;
+        vector<pair<Function*,ui32>> funcArray;
 
         Value* ptr_reg_table;
         Value* ptr_memory;
@@ -58,7 +56,6 @@ class ASM2LLVMBuilder
         LLVMContext context;
         Module* module;
         IRBuilder<> builder;
-        map<std::string, Value*> NamedValues;
     public:
         Disassembler& disasembler;
         static ASM2LLVMBuilder& Instance()
@@ -88,11 +85,9 @@ class ASM2LLVMBuilder
 
 /*
     TODO:
-    [ ] переделать алгоритм преобразования адресов в номера команд (использовать unordered map)
-    [x] добавить работу со стеком
-    [x] поддержка операндов, обращающихся к памяти
-    [x] поддержка call, ret
-    [x] блок инициализации в начале каждой функции
+    [x] переделать алгоритм преобразовани¤ адресов в номера команд (использовать unordered map)
+        [x] избавитьс¤ от мапы bbArray
+    [ ] написать обработчик ошибок дл¤ каждой стади трансл¤ции
 */
 
 #define LLVM_IR_DEBUG_CODE 0

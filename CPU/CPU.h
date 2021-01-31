@@ -106,3 +106,5 @@ const ui8 EFL_REG_INDEX = 9;
 const ui8 ECS_REG_INDEX = 10;
 const ui8 EDS_REG_INDEX = 11;
 const ui8 ESS_REG_INDEX = 12;
+
+const ui8 BYTES_IN_REGISTER = sizeof(ui32);

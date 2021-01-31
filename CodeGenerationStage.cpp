@@ -12,22 +12,41 @@ void ASM2LLVMBuilder::codeGenerationStage()
         builder.CreateRet(tmp);
     #else
         bool isLastCmdBrch = 0;
-        for (auto it : bbArray)
+        for (ui32 i = 0; i < bbArray.size() - 1; i++)
         {
-            BlockInfo& blockInfo = it.second;
-            
-            BasicBlock& bbEntry = funcArray[it.second.funcIndex].first->getEntryBlock();
+            BlockInfo& bbInfo = bbArray[i];
+            // это очень странный способ получения ptr_reg_table & ptr_memory ....
+            BasicBlock& bbEntry = funcArray[bbInfo.funcIndex].first->getEntryBlock();
             BasicBlock::iterator its = bbEntry.begin();
             ptr_reg_table = &(*its); its++;
             ptr_memory = &(*its);
+
+            //парсим команды из блока
             isLastCmdBrch = 0;
-            builder.SetInsertPoint(blockInfo.bb);
-            for (ui32 i = blockInfo.sLine; i <= blockInfo.eLine && !isLastCmdBrch; i++)
-                LLVMPareseCommand(commandList[i], isLastCmdBrch, blockInfo);
-            if (!isLastCmdBrch && blockInfo.nextInfoBlock)
-                builder.CreateBr(blockInfo.nextInfoBlock->bb);
+            builder.SetInsertPoint(bbInfo.bb);
+            currBBIndex = i;
+            for (ui32 j = bbInfo.sLine; j <= bbInfo.eLine && !isLastCmdBrch; j++)
+                LLVMPareseCommand(commandList[j], isLastCmdBrch, bbInfo);
+
+            if (
+                !isLastCmdBrch
+             && bbArray[i].funcIndex != bbArray[i + 1].funcIndex
+             && i != bbArray.size() - 2
+            )
+            {
+                printf(
+                    "Error: Two consecutive blocks "
+                    "belong to different functions "
+                    "and are not separated by a "
+                    "branch operator");
+                return;
+            }
+
+            if (!isLastCmdBrch && i == bbArray.size() - 2)
+                builder.CreateRetVoid();
+            else if (!isLastCmdBrch)
+                builder.CreateBr(bbArray[i+1].bb);
         }
-        builder.CreateRetVoid();
     #endif
 }
 
@@ -153,14 +172,14 @@ AsmError ASM2LLVMBuilder::LLVMPareseCommand(const Command& cmd, bool& isBrhComma
             stackValue.push(builder.CreatePointerCast(stackValue.top(), Type::getInt32PtrTy(context)));
             builder.CreateStore(operand[0], stackValue.top());
 
-            stackValue.push(builder.CreateAdd(ESPRegister, builder.getInt32(sizeof(ui32))));
+            stackValue.push(builder.CreateAdd(ESPRegister, builder.getInt32(BYTES_IN_REGISTER)));
             builder.CreateStore(stackValue.top(), ESPRegisterPtr);
 
             break;
         case Disassembler::CMD_TYPE_POP:
             ESPRegisterPtr = builder.CreateConstGEP1_32(ptr_reg_table, ESP_REG_INDEX);
             ESPRegister = builder.CreateLoad(ESPRegisterPtr);
-            stackValue.push(builder.CreateSub(ESPRegister, builder.getInt32(sizeof(ui32))));
+            stackValue.push(builder.CreateSub(ESPRegister, builder.getInt32(BYTES_IN_REGISTER)));
             builder.CreateStore(stackValue.top(), ESPRegisterPtr);
             stackValue.push(builder.CreateGEP(ptr_memory, stackValue.top()));
             stackValue.push(builder.CreatePointerCast(stackValue.top(), Type::getInt32PtrTy(context)));
@@ -171,7 +190,7 @@ AsmError ASM2LLVMBuilder::LLVMPareseCommand(const Command& cmd, bool& isBrhComma
             isBrhCommand |= 1;
             ESPRegisterPtr = builder.CreateConstGEP1_32(ptr_reg_table, ESP_REG_INDEX);
             ESPRegister = builder.CreateLoad(ESPRegisterPtr);
-            stackValue.push(builder.CreateSub(ESPRegister, builder.getInt32(sizeof(ui32))));
+            stackValue.push(builder.CreateSub(ESPRegister, builder.getInt32(BYTES_IN_REGISTER)));
             builder.CreateStore(stackValue.top(), ESPRegisterPtr);
             builder.CreateRetVoid();
             break;
@@ -190,7 +209,7 @@ AsmError ASM2LLVMBuilder::LLVMPareseCommand(const Command& cmd, bool& isBrhComma
 
             ESPRegisterPtr = builder.CreateConstGEP1_32(ptr_reg_table, ESP_REG_INDEX);
             ESPRegister = builder.CreateLoad(ESPRegisterPtr);
-            stackValue.push(builder.CreateAdd(ESPRegister, builder.getInt32(sizeof(ui32))));
+            stackValue.push(builder.CreateAdd(ESPRegister, builder.getInt32(BYTES_IN_REGISTER)));
             builder.CreateStore(stackValue.top(), ESPRegisterPtr);
 
             builder.CreateCall(funcArray[funcIndex].first);
@@ -239,7 +258,7 @@ AsmError ASM2LLVMBuilder::LLVMPareseCommand(const Command& cmd, bool& isBrhComma
             default:
                 break;
         }
-        builder.CreateCondBr(stackValue.top(), bbArray[cmd.operand[0].ivalue].bb, blockInfo.nextInfoBlock->bb);
+        builder.CreateCondBr(stackValue.top(), bbArray[cmd.operand[0].ivalue].bb, bbArray[currBBIndex+1].bb);
     }
     return ASM_OK;
 }

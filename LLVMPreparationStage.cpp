@@ -40,9 +40,9 @@ void ASM2LLVMBuilder::LLVMPreparation(const C_string sourceFile)
         builder.CreateRetVoid();
 
 
-        for (auto& item : bbArray)
-            if(!item.second.bb)
-            item.second.bb = BasicBlock::Create(context, "BB_" + std::to_string(item.first), funcArray[item.second.funcIndex].first);
+        for(ui32 i = 0; i < bbArray.size() - 1; i++)
+            if(!bbArray[i].bb)
+                bbArray[i].bb = BasicBlock::Create(context, "BB_" + std::to_string(i), funcArray[bbArray[i].funcIndex].first);
 
     #endif
 }

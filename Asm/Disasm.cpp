@@ -1,5 +1,5 @@
-#include "Asm/Asm.h"
-#include "Asm/CpuInfo.h"
+#include "Asm.h"
+#include "AsmTables.h"
 #include "Tools/LibStr.h"
 #include <stdlib.h>
 #include <stdio.h>
@@ -7,7 +7,6 @@
 #include <ctype.h>
 #include <iostream>
 #include <vector>
-#include <algorithm>
 
 using namespace std;
 using namespace Assembler;
@@ -21,8 +20,8 @@ using namespace Assembler;
 static C_string getCommandName(Command cmd)
 {
     for (int i = 0; i < COMMAND_TABLE_SIZE; i++)
-        if (Table[i].machineCode >> 8 == cmd.code.bits.opCode)
-            return (C_string)Table[i].command;
+        if (commandTable[i].machineCode >> 8 == cmd.code.bits.opCode)
+            return (C_string)commandTable[i].command;
     return NULL;
 }
 
@@ -35,8 +34,8 @@ static C_string getCommandName(Command cmd)
 static C_string getRegisterName(ui8 machineCode)
 {
     for (int i = 0; i < REGISTER_TABLE_SIZE; i++)
-        if (Registers[i].machineCode == machineCode)
-            return (C_string)Registers[i].command;
+        if (registerTable[i].machineCode == machineCode)
+            return (C_string)registerTable[i].command;
     return NULL;
 }
 

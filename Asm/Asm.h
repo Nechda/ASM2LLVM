@@ -62,6 +62,15 @@ namespace Assembler
         ui8 sizeCommand = 0;
     };
 
+    enum CommandType
+    {
+        #define DEF(name, mCode, vStr1, vSrt2, code)\
+            CMD_##name,
+            #include "Extend.h"
+        #undef DEF
+    };
+
+
     /*
     \brief Допустимые типы операндов
     */
@@ -92,14 +101,6 @@ namespace Assembler
             Disassembler(const Disassembler&) = delete;
             Disassembler& operator=(const Disassembler&) = delete;
             AsmError getCode(ui8* bytes, ui32 nBytes, FILE* outStream);
-        public:
-            enum CommandType
-            {
-                #define DEF(name, mCode, vStr1, vSrt2, code)\
-                                CMD_TYPE_##name,
-                #include "Extend.h"
-                #undef DEF
-            };
     };
 
     class Compilator

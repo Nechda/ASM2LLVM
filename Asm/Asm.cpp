@@ -1,5 +1,5 @@
-#include "Asm/Asm.h"
-#include "CpuInfo.h"
+#include "Asm.h"
+#include "AsmTables.h"
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -8,14 +8,14 @@
 
 using namespace Assembler;
 
-Lexema Table[] = {
+Lexema commandTable[] = {
     #define DEF(name, mCode, vStr1, vStr2, code) \
         {#name, mCode, vStr1, vStr2},
     #include "Extend.h"
     #undef DEF
 };
 
-const Lexema Registers[] =
+const Lexema registerTable[] =
 {
     {"eax",     1},{"ebx",     2},{"ecx",     3},{"edx",     4},
     {"esi",     5},{"edi",     6},{"esp",     7},{"ebp",     8},
@@ -23,8 +23,8 @@ const Lexema Registers[] =
     {"ess",    13}
 };
 
-const ui32 COMMAND_TABLE_SIZE = sizeof(Table) / sizeof(Lexema);
-const ui32 REGISTER_TABLE_SIZE = sizeof(Registers) / sizeof(Lexema);
+const ui32 COMMAND_TABLE_SIZE = sizeof(commandTable) / sizeof(Lexema);
+const ui32 REGISTER_TABLE_SIZE = sizeof(registerTable) / sizeof(Lexema);
 
 
 /*
@@ -70,10 +70,10 @@ C_string Assembler::getStringByErrorCode(AsmError errorCode)
             return "Ok";
             break;
         case ASM_ERROR_INVALID_INPUT_DATA:
-            return "Due to compilating occur error ralated with invalid input data";
+            return "Due to compilating occur error ralated to invalid input data";
             break;
         case ASM_ERROR_OUT_OF_MEMORY:
-            return "Due to compilating occur error realted with calloc or realloc function";
+            return "Due to compilating occur error realted to calloc or realloc function";
             break;
         case ASM_ERROR_GEN_LABLE_TABLE:
             return "The compiler could not generate the label table";
@@ -101,7 +101,7 @@ C_string Assembler::getStringByErrorCode(AsmError errorCode)
             break;
         case ASM_ERROR_CANT_READ_LEXEMA:
             return "Error occur, when we try to read lexema from code.\n"
-                   "Perhabs this error related with null pointer.";
+                   "Perhabs this error related to null pointer.";
             break;
         default:
             return "Undefined error code";

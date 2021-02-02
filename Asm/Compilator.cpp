@@ -1,5 +1,5 @@
-#include "Asm/Asm.h"
-#include "Asm/CpuInfo.h"
+#include "Asm.h"
+#include "AsmTables.h"
 #include <ctype.h>
 
 
@@ -48,8 +48,8 @@ void prepareCompilatorsTable()
 {
     for (int i = 0; i < COMMAND_TABLE_SIZE; i++)
     {
-        if (!islower(Table[i].command[0]))
-            toLowerStr((char*)Table[i].command);
+        if (!islower(commandTable[i].command[0]))
+            toLowerStr((char*)commandTable[i].command);
     }
 }
 
@@ -109,7 +109,7 @@ static LexemaType getLexemaType(const char* str)
         return LEX_NUMBER;
 
     for (int i = 0; i < COMMAND_TABLE_SIZE; i++)
-        if (!strcmp(str, Table[i].command))
+        if (!strcmp(str, commandTable[i].command))
             return LEX_COMMAND;
 
     LexemaType result = LEX_ERROR;
@@ -122,7 +122,7 @@ static LexemaType getLexemaType(const char* str)
     }
 
     for (int i = 0; i < REGISTER_TABLE_SIZE; i++)
-        if (!strcmp(str, Registers[i].command))
+        if (!strcmp(str, registerTable[i].command))
         {
             result = result == LEX_ERROR ? LEX_REGISTER : LEX_MEM_BY_REG;
             break;
@@ -238,16 +238,16 @@ static inline void* readNextLexema(char** ptrCodeLine, LexemaType* lxt)
 
     if (*lxt == LEX_COMMAND)
         for (int i = 0; i < COMMAND_TABLE_SIZE; i++)
-            if (!strcmp(buffer, Table[i].command))
+            if (!strcmp(buffer, commandTable[i].command))
             {
-                bufInt = Table[i].machineCode;
+                bufInt = commandTable[i].machineCode;
                 return &bufInt;
             }
     if (*lxt == LEX_REGISTER)
         for (int i = 0; i < REGISTER_TABLE_SIZE; i++)
-            if (!strcmp(buffer, Registers[i].command))
+            if (!strcmp(buffer, registerTable[i].command))
             {
-                bufInt = Registers[i].machineCode;
+                bufInt = registerTable[i].machineCode;
                 return &bufInt;
             }
     if (*lxt == LEX_NUMBER)
@@ -317,8 +317,8 @@ static int getMemoryOperand(char* str, Label* lables, ui32 nLables)
         return lables[resOperand].pos;
 
     for (int i = 0; i < REGISTER_TABLE_SIZE; i++)
-        if (!strcmp(str, Registers[i].command))
-            return Registers[i].machineCode;
+        if (!strcmp(str, registerTable[i].command))
+            return registerTable[i].machineCode;
 
     return ASM_ERROR_CODE;
 }
@@ -334,10 +334,10 @@ static AsmError checkValidityOfOperands(Command cmd)
 {
     char* validityStr[2] = { NULL, NULL };
     for (int i = 0; i < COMMAND_TABLE_SIZE; i++)
-        if (Table[i].machineCode >> 8 == cmd.code.bits.opCode)
+        if (commandTable[i].machineCode >> 8 == cmd.code.bits.opCode)
         {
-            validityStr[0] = Table[i].validFirstOperand;
-            validityStr[1] = Table[i].validSecondOperand;
+            validityStr[0] = commandTable[i].validFirstOperand;
+            validityStr[1] = commandTable[i].validSecondOperand;
         }
 
     if (validityStr[0] == NULL)

@@ -48,175 +48,46 @@ void ASM2LLVMBuilder::codeGenerationStage()
     }
 }
 
-struct Params
-{
-    circular_buffer<Value*>& stackValue;
-    IRBuilder<>& builder;
-    LLVMContext& context;
-};
 
 
-static inline Value* crt_GEP(Value* ptr, Value* index, Params params)
-{
-    Value* res = params.builder.CreateGEP(ptr, index);
-    params.stackValue.push_back(res);
-    return res;
-}
+#define CODE_GENERATE_MACRO
+#include "CodegenMacro.h"
 
-static inline Value* ctr_ConstGEP1_32(Value* ptr, ui32 index, Params params)
-{
-    Value* res = params.builder.CreateConstGEP1_32(ptr, index);
-    params.stackValue.push_back(res);
-    return res;
-}
+/*
+    \brief Макросы, генерирующие команды ir, сгенерированная команда помещается в стек
+*/
+#define c_GEP(ptr, index)          DECLARE_FUNC_WITH_2_PARAMS(GEP)(ptr,index)
+#define c_ConstGEP1_32(ptr, index) DECLARE_FUNC_WITH_2_PARAMS_I(ConstGEP1_32)(ptr, index)
+#define c_CastPtrInt32(ptr)        DECLARE_FUNC_WITH_2_PARAMS(PointerCast)(ptr,Type::getInt32PtrTy(context))
+#define c_Load(ptr)                DECLARE_FUNC_WITH_1_PARAMS(Load)(ptr)
+#define c_Store(data, ptr)         DECLARE_FUNC_WITH_2_PARAMS(Store)(data, ptr); ringBufValue.pop_back()
 
-static inline Value* ctr_CastPtrInt32(Value* ptr, Params params)
-{
-    Value* res = params.builder.CreatePointerCast(ptr, Type::getInt32PtrTy(params.context));
-    params.stackValue.push_back(res);
-    return res;
-}
+#define c_Add(op1, op2)            DECLARE_FUNC_WITH_2_PARAMS(Add) (op1, op2)
+#define c_Sub(op1, op2)            DECLARE_FUNC_WITH_2_PARAMS(Sub) (op1, op2) 
+#define c_Mul(op1, op2)            DECLARE_FUNC_WITH_2_PARAMS(Mul) (op1, op2)
+#define c_Div(op1, op2)            DECLARE_FUNC_WITH_2_PARAMS(FDiv)(op1, op2)
 
-static inline Value* crt_Load(Value* ptr, Params params)
-{
-    Value* res = params.builder.CreateLoad(ptr);
-    params.stackValue.push_back(res);
-    return res;
-}
+#define c_Not(op1, op2)            DECLARE_FUNC_WITH_1_PARAMS(Not)(op1)
+#define c_Cast_i1(op1)             DECLARE_FUNC_WITH_2_PARAMS(ICmpNE)(op1,builder.getInt32(0))
+#define c_And(op1, op2)      DECLARE_FUNC_WITH_2_UNION_PARAMS(And)(op1,op2)
+#define c_Or (op1, op2)      DECLARE_FUNC_WITH_2_UNION_PARAMS(Or )(op1,op2)
 
-static inline void   crt_Store(Value* data, Value* ptr, Params params)
-{
-    params.builder.CreateStore(data, ptr);
-}
+/*
+    \brief Макросы, генерирующие команды ir, аргументы команд берутся из стека
+*/
+#define s_CastPtrInt32() DECLARE_FUNC_WITH_1_PARAMS_STK_1(PointerCast, Type)(Type::getInt32PtrTy(context))
+#define s_Load()         DECLARE_FUNC_WITH_1_PARAMS_STK(Load)()
+#define s_And()          DECLARE_FUNC_WITH_2_UNION_PARAMS_STK(And)()
+#define s_Or()           DECLARE_FUNC_WITH_2_UNION_PARAMS_STK(Or)()
+#define s_Not()          DECLARE_FUNC_WITH_1_PARAMS_STK_1(ICmpEQ, Value)(builder.getInt32(0))
+#define s_Cast_i1()      DECLARE_FUNC_WITH_1_PARAMS_STK_1(ICmpNE, Value)(builder.getInt32(0))
 
-static inline Value* crt_Add(Value* op1, Value* op2, Params params)
-{
-    Value* res = params.builder.CreateAdd(op1, op2);
-    params.stackValue.push_back(res);
-    return res;
-}
-
-static inline Value* crt_Sub(Value* op1, Value* op2, Params params)
-{
-    Value* res = params.builder.CreateSub(op1, op2);
-    params.stackValue.push_back(res);
-    return res;
-}
-
-static inline Value* crt_Mul(Value* op1, Value* op2, Params params)
-{
-    Value* res = params.builder.CreateMul(op1, op2);
-    params.stackValue.push_back(res);
-    return res;
-}
-
-static inline Value* crt_Div(Value* op1, Value* op2, Params params)
-{
-    Value* res = params.builder.CreateFDiv(op1, op2);
-    params.stackValue.push_back(res);
-    return res;
-}
-
-static inline Value* crt_AND(Value* a, Value* b, Params params)
-{
-    Value* res = params.builder.CreateAnd({ a, b });
-    params.stackValue.push_back(res);
-    return res;
-}
-
-static inline Value* crt_OR(Value* a, Value* b, Params params)
-{
-    Value* res = params.builder.CreateOr({ a, b });
-    params.stackValue.push_back(res);
-    return res;
-}
-
-static inline Value* ctr_NOT(Value* a, Params params)
-{
-    Value* res = params.builder.CreateNot(a);
-    params.stackValue.push_back(res);
-    return res;
-}
-
-static inline Value* crt_CAST_I1(Value* a, Params params)
-{
-    Value* res = params.builder.CreateICmpNE(a, params.builder.getInt32(0));
-    params.stackValue.push_back(res);
-    return res;
-}
-
-
-static inline void _CastPtrInt32(Params params)
-{
-    Value* a = params.stackValue.back(); params.stackValue.pop_back();
-    params.stackValue.push_back(params.builder.CreatePointerCast(a, Type::getInt32PtrTy(params.context)));
-}
-
-static inline void _Load(Params params)
-{
-    Value* a = params.stackValue.back(); params.stackValue.pop_back();
-    params.stackValue.push_back(params.builder.CreateLoad(a));
-}
-
-static inline void _AND(Params params)
-{
-    Value* a = params.stackValue.back(); params.stackValue.pop_back();
-    Value* b = params.stackValue.back(); params.stackValue.pop_back();
-    params.stackValue.push_back(params.builder.CreateAnd({ a, b }));
-}
-
-static inline void _OR(Params params)
-{
-    Value* a = params.stackValue.back(); params.stackValue.pop_back();
-    Value* b = params.stackValue.back(); params.stackValue.pop_back();
-    params.stackValue.push_back(params.builder.CreateOr({ a, b }));
-}
-
-static inline void _NOT(Params params)
-{
-    Value* a = params.stackValue.back(); params.stackValue.pop_back();
-    params.stackValue.push_back(params.builder.CreateICmpEQ(a, params.builder.getInt32(0)));
-}
-
-static inline void _CAST_I1(Params params)
-{
-    Value* a = params.stackValue.back(); params.stackValue.pop_back();
-    params.stackValue.push_back(params.builder.CreateICmpNE(a, params.builder.getInt32(0)));
-}
-
-#define PARAMS_STRCT {ringBufValue, builder, context}
-
-#define c_GEP(ptr, index)          crt_GEP(ptr, index, PARAMS_STRCT)
-#define c_ConstGEP1_32(ptr, index) ctr_ConstGEP1_32(ptr, index, PARAMS_STRCT)
-#define c_CastPtrInt32(ptr)        ctr_CastPtrInt32(ptr, PARAMS_STRCT)
-#define c_Load(ptr)                crt_Load(ptr, PARAMS_STRCT)
-#define c_Store(data, ptr)         crt_Store(data, ptr, PARAMS_STRCT)
-
-#define c_Add(op1, op2) crt_Add(op1, op2, PARAMS_STRCT)
-#define c_Sub(op1, op2) crt_Sub(op1, op2, PARAMS_STRCT)
-#define c_Mul(op1, op2) crt_Mul(op1, op2, PARAMS_STRCT)
-#define c_Div(op1, op2) crt_Div(op1, op2, PARAMS_STRCT)
-
-#define c_AND(a,b)   crt_AND(a, b, PARAMS_STRCT)
-#define c_OR(a,b)    crt_OR(a, b, PARAMS_STRCT)
-#define c_NOT(a)     crt_NOT(a, PARAMS_STRCT)
-#define c_CAST_I1(a) crt_CAST_I1(a, PARAMS_STRCT)
-
-
-#define s_CastPtrInt32() _CastPtrInt32(PARAMS_STRCT)
-#define s_Load() _Load(PARAMS_STRCT)
-
-#define s_AND()     _AND(PARAMS_STRCT)
-#define s_OR()      _OR(PARAMS_STRCT)
-#define s_NOT()     _NOT(PARAMS_STRCT)
-#define s_CAST_I1() _CAST_I1(PARAMS_STRCT)
 
 AsmError ASM2LLVMBuilder::LLVMPareseCommand(const Command& cmd, bool& isBrhCommand, const BlockInfo& blockInfo)
 {
     Value* operand[2] = {};
     Value* operand_ptr[2] = {};
     static circular_buffer<Value*> ringBufValue(RING_BUFFER_CAPACITY);
-
 
     for (ui8 i = 0; i < cmd.code.bits.nOperands; i++)
     {
@@ -354,33 +225,33 @@ AsmError ASM2LLVMBuilder::LLVMPareseCommand(const Command& cmd, bool& isBrhComma
         switch (cmd.code.bits.opCode)
         {
             case CMD_JE:
-                c_AND(eflRegister, builder.getInt32(1 << FLAG_ZF));
-                s_CAST_I1();
+                c_And(eflRegister, builder.getInt32(1 << FLAG_ZF));
+                s_Cast_i1();
                 break;
             case CMD_JNE:
-                c_AND(eflRegister, builder.getInt32(1 << FLAG_ZF));
-                s_NOT();
+                c_And(eflRegister, builder.getInt32(1 << FLAG_ZF));
+                s_Not();
                 break;
             case CMD_JA:
-                c_AND(eflRegister, builder.getInt32(1 << FLAG_CF));
-                s_NOT();
-                c_AND(eflRegister, builder.getInt32(1 << FLAG_ZF));
-                s_NOT();
-                s_AND();
+                c_And(eflRegister, builder.getInt32(1 << FLAG_CF));
+                s_Not();
+                c_And(eflRegister, builder.getInt32(1 << FLAG_ZF));
+                s_Not();
+                s_And();
                 break;
             case CMD_JAE:
-                c_AND(eflRegister, builder.getInt32(1 << FLAG_CF));
-                s_NOT();
+                c_And(eflRegister, builder.getInt32(1 << FLAG_CF));
+                s_Not();
                 break;
             case CMD_JB:
-                c_AND(eflRegister, builder.getInt32(1 << FLAG_CF));
-                s_CAST_I1();
+                c_And(eflRegister, builder.getInt32(1 << FLAG_CF));
+                s_Cast_i1();
                 break;
             case CMD_JBE:
-                c_AND(eflRegister, builder.getInt32(1 << FLAG_CF));
-                c_AND(eflRegister, builder.getInt32(1 << FLAG_ZF));
-                s_OR();
-                s_CAST_I1();
+                c_And(eflRegister, builder.getInt32(1 << FLAG_CF));
+                c_And(eflRegister, builder.getInt32(1 << FLAG_ZF));
+                s_Or();
+                s_Cast_i1();
                 break;
             default:
                 break;

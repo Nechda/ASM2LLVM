@@ -6,8 +6,6 @@
 #include "Types.h"
 
 
-#define Assert_c(expr) if(!(expr)) loggerAssert(#expr,__FILE__,__FUNCSIG__,__LINE__);
-
 #ifndef NDEBUG
     //#define STK_CANARY_PROTECTION           ///<включаем защиту канарейками
     //#define STK_HASH_PROTECTION             ///<включаем защиту хешами

@@ -76,13 +76,13 @@ AsmError Disassembler::getCode(ui8* bytes, ui32 nBytes, FILE* outStream = stdout
         commandName = getCommandName(cmd);
         if (!commandName)
         {
-            logger("Disassembler error", "The 0x%X code doesn't match any commands", cmd.code.marchCode & 0xFFFF);
+            logger.push("Disassembler error", "The 0x%X code doesn't match any commands", cmd.code.marchCode & 0xFFFF);
             return ASM_ERROR_INVALID_MACHINE_CODE;
         }
 
         if (cmd.code.bits.nOperands > 2)
         {
-            logger("Disassembler error", "Invalid number of operands: %d, should be less than 3", cmd.code.bits.nOperands);
+            logger.push("Disassembler error", "Invalid number of operands: %d, should be less than 3", cmd.code.bits.nOperands);
             return ASM_ERROR_INVALID_OPERANDS_NUMBER;
         }
 
@@ -108,7 +108,7 @@ AsmError Disassembler::getCode(ui8* bytes, ui32 nBytes, FILE* outStream = stdout
 
         if (isInvalidOperands)
         {
-            logger("Disassembler error", "Invalid code for operands!");
+            logger.push("Disassembler error", "Invalid code for operands!");
             return ASM_ERROR_INVALID_OPERAND_SYNTAX;
         }
 
@@ -159,7 +159,7 @@ void Disassembler::disasmCommand(Command cmd, FILE* outStream = stdout)
         return;
     if (ferror(outStream))
     {
-        logger("Disassembler error", "In function %s. Stream \'outStream\' has errors.\n", __FUNCSIG__);
+        logger.push("Disassembler error", "In function %s. Stream \'outStream\' has errors.\n", __FUNCSIG__);
         return;
     }
 
@@ -167,7 +167,7 @@ void Disassembler::disasmCommand(Command cmd, FILE* outStream = stdout)
     commandName = getCommandName(cmd);
     if (!commandName)
     {
-        logger("Disassembler error", "The 0x%X code doesn't match any commands", cmd.code.bits.opCode & 0xFFFF);
+        logger.push("Disassembler error", "The 0x%X code doesn't match any commands", cmd.code.bits.opCode & 0xFFFF);
         return;
     }
 
@@ -184,7 +184,7 @@ void Disassembler::disasmCommand(Command cmd, FILE* outStream = stdout)
 
     if (isInvalidOperands)
     {
-        logger("Disassembler error", "Invalid code for operands!");
+        logger.push("Disassembler error", "Invalid code for operands!");
         return;
     }
 
@@ -224,13 +224,13 @@ AsmError Disassembler::generateCommandList(vector<Command>& commands, i8* bytes,
 
         if (!getCommandName(cmd))
         {
-            logger("Disassembler error", "The 0x%X code doesn't match any commands", cmd.code.bits.opCode & 0xFFFF);
+            logger.push("Disassembler error", "The 0x%X code doesn't match any commands", cmd.code.bits.opCode & 0xFFFF);
             return ASM_ERROR_INVALID_MACHINE_CODE;
         }
 
         if (cmd.code.bits.nOperands > 2)
         {
-            logger("Disassembler error", "Invalid number of operands: %d, should be less than 3", cmd.code.bits.nOperands);
+            logger.push("Disassembler error", "Invalid number of operands: %d, should be less than 3", cmd.code.bits.nOperands);
             return ASM_ERROR_INVALID_OPERANDS_NUMBER;
         }
 
@@ -257,7 +257,7 @@ AsmError Disassembler::generateCommandList(vector<Command>& commands, i8* bytes,
 
         if (isInvalidOperands)
         {
-            logger("Disassembler error", "Invalid code for operands!");
+            logger.push("Disassembler error", "Invalid code for operands!");
             return ASM_ERROR_INVALID_OPERAND_SYNTAX;
         }
 

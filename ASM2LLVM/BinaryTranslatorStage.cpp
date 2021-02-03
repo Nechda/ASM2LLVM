@@ -5,33 +5,36 @@
 using namespace Assembler;
 using std::unordered_map;
 
-static void initInStream(const C_string inputFileName, i8** buffer, ui32* readBytes)
+static i32 initInStream(const C_string inputFileName, i8** buffer, ui32* readBytes)
 {
     Assert_c(inputFileName);
     Assert_c(buffer);
     Assert_c(readBytes);
     if (!buffer || !readBytes)
-        return;
+        return 1;
 
     if (!inputFileName)
     {
-        printf("Error: No input file specified!\n");
-        return;
+        logger.push("Error", "{Reading bin file}: No input file specified!");
+        return 1;
     }
 
     *readBytes = readFullFile(inputFileName, buffer);
     if (*readBytes == ASM_ERROR_CODE)
     {
-        printf("Error: We have some troubles with read code from file:%s\n", inputFileName);
-        return;
+        logger.push("Error",
+                    "{Reading bin file}: "
+                    "We have some troubles with read code from file:%s",
+                    inputFileName);
+        return 1;
     }
 
-    return;
+    return 0;
 }
 
 
 /*
-\brief чуть более простой способ пересчета адреса в номер команды
+\brief „уть более простой способ пересчета адреса в номер команды
 \note  јсимптотика алгоритма O(N), пам¤ти в худшем случае будет 4*N
        N - количество команд в программе
 */
@@ -57,8 +60,8 @@ void recalcAdrToCmdNumber(vector<Command>& commandList)
 }
 
 /*
-\brief самый простой способ пересчитать адреса в номера команд
-\note  асимптотика алгоритма O(N), в свою очередь доп пам¤ть будет 4*N байт,
+\brief —амый простой способ пересчитать адреса в номера команд
+\note  јсимптотика алгоритма O(N), в свою очередь доп пам¤ть будет 4*N байт,
        N - количество команд в программе
 */
 void stupidRecalculate(vector<Command>& commandList)
@@ -77,13 +80,16 @@ void stupidRecalculate(vector<Command>& commandList)
             cmd.operand[0].ivalue = nCommand[cmd.operand[0].ivalue];
 }
 
-void ASM2LLVMBuilder::parseBinaryStage(const C_string inputFile)
+TranslatorError ASM2LLVMBuilder::parseBinaryStage(const C_string inputFile)
 {
+    bool isErrorOccur = 0;
     i8* bytes = NULL;
     ui32 nBytes = 0;
-    initInStream(inputFile, &bytes, &nBytes);
-    ASM2LLVMBuilder::Instance().disasembler.generateCommandList(commandList, bytes, nBytes);
-    //теперь займемся пересчетом адресов в номера команд
+    isErrorOccur |= initInStream(inputFile, &bytes, &nBytes);
+    isErrorOccur |= disasembler.generateCommandList(commandList, bytes, nBytes) != ASM_OK;
+    //теперь займемс¤ пересчетом адресов в номера команд
     recalcAdrToCmdNumber(commandList);
-    free(bytes);
+    if(bytes)
+        free(bytes);
+    return isErrorOccur ? TR_ERROR_PARSE_BINARY : TR_OK;
 }

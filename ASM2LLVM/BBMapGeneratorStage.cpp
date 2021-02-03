@@ -41,12 +41,10 @@ void parseFunctions(Params params, ui32 pos, bool isCall, ui32 currentFunctionIn
         }
         if (cmd.code.bits.opCode == Assembler::CMD_RET)
             return;
-
-        
     }
 }
 
-void ASM2LLVMBuilder::genBBListStage()
+TranslatorError ASM2LLVMBuilder::genBBListStage()
 {
     ui32 currentPtr = 0;
 
@@ -129,4 +127,5 @@ void ASM2LLVMBuilder::genBBListStage()
         bbArray[i] = { nullptr, nComands[i].first, nComands[i + 1].first - 1, nComands[i].second };
     bbArray.back() = {}; //завершающий базовый блок, в котором нет ни одной команды
 
+    return TR_OK;
 }

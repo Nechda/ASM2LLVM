@@ -1,17 +1,19 @@
 #include "ASM2LLVM.h"
 #include "CPU/CPU.h"
 #include "Asm/Asm.h"
-#include <stack>
 #include <boost/circular_buffer.hpp>
 
-using std::stack;
 using boost::circular_buffer;
 using namespace Assembler;
 
-void ASM2LLVMBuilder::codeGenerationStage()
+TranslatorError ASM2LLVMBuilder::codeGenerationStage()
 {
+    bool isErrorOccur = 0;
+    isErrorOccur |= bbArray.size() <= 1;
+
+
     bool isLastCmdBrch = 0;
-    for (ui32 i = 0; i < bbArray.size() - 1; i++)
+    for (ui32 i = 0; i < bbArray.size() - 1 && !isErrorOccur; i++)
     {
         BlockInfo& bbInfo = bbArray[i];
         // это очень странный способ получения ptr_reg_table & ptr_memory ....
@@ -24,8 +26,9 @@ void ASM2LLVMBuilder::codeGenerationStage()
         isLastCmdBrch = 0;
         builder.SetInsertPoint(bbInfo.bb);
         currBBIndex = i;
-        for (ui32 j = bbInfo.sLine; j <= bbInfo.eLine && !isLastCmdBrch; j++)
-            LLVMPareseCommand(commandList[j], isLastCmdBrch, bbInfo);
+        for (ui32 j = bbInfo.sLine; j <= bbInfo.eLine && !isLastCmdBrch && !isErrorOccur; j++)
+            isErrorOccur |=
+            LLVMPareseCommand(commandList[j], isLastCmdBrch, bbInfo) != ASM_OK;
 
         if (
             !isLastCmdBrch
@@ -33,12 +36,12 @@ void ASM2LLVMBuilder::codeGenerationStage()
             && i != bbArray.size() - 2
         )
         {
-            printf(
-                "Error: Two consecutive blocks "
+            logger.push("Error", "{Code generation}: "
+                "Two consecutive blocks "
                 "belong to different functions "
                 "and are not separated by a "
                 "branch operator");
-            return;
+            return TR_ERROR_CODE_GENERATION;
         }
 
         if (!isLastCmdBrch && i == bbArray.size() - 2)
@@ -46,6 +49,8 @@ void ASM2LLVMBuilder::codeGenerationStage()
         else if (!isLastCmdBrch)
             builder.CreateBr(bbArray[i+1].bb);
     }
+
+    return isErrorOccur ? TR_ERROR_CODE_GENERATION : TR_OK;
 }
 
 
@@ -89,6 +94,15 @@ AsmError ASM2LLVMBuilder::LLVMPareseCommand(const Command& cmd, bool& isBrhComma
     Value* operand_ptr[2] = {};
     static circular_buffer<Value*> ringBufValue(RING_BUFFER_CAPACITY);
 
+    if (cmd.code.bits.nOperands > 2)
+    {
+        logger.push("Error",
+                    "{Parsing asm commands}: Invalid number of operands. mCode: 0x%X",
+                    cmd.code.marchCode & 0xFFFF
+        );
+        return ASM_ERROR_INVALID_OPERANDS_NUMBER;
+    }
+
     for (ui8 i = 0; i < cmd.code.bits.nOperands; i++)
     {
         OperandType opType = getOperandType(cmd, i);
@@ -116,6 +130,11 @@ AsmError ASM2LLVMBuilder::LLVMPareseCommand(const Command& cmd, bool& isBrhComma
                 operand[i] = c_Load(operand_ptr[i]);
                 break;
             default:
+                logger.push("Error",
+                    "{Parsing asm commands}: Invalid type of operands. mCode: 0x%X",
+                    cmd.code.marchCode & 0xFFFF
+                );
+                return ASM_ERROR_INVALID_OPERAND_SYNTAX;
                 break;
         }
     }

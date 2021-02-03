@@ -4,6 +4,9 @@
 #include <stdarg.h>
 #include <ctime>
 
+
+Logger& logger = Logger::Instance();
+
 /**
 \brief У винды такой функции нет, поэтому напишем свой вариант
 */
@@ -30,24 +33,16 @@ int gettimeofday(struct timeval* tp, struct timezone* tzp)
 #endif
 
 
-static FILE *fptr = NULL; ///< переменная файла - лога
+Logger Logger::theInstance;
 
-
-/**
-\brief Функция возвращает файловую переменную лога
-\return Файловая переменная лога
-*/
-FILE* getLoggerStream()
+const Stream Logger::getStream()
 {
-    return fptr;
+    return logStream;
 }
 
-
-
-void logger(const char* tag, const char* format, ...)
+void Logger::printTime()
 {
-    if (!fptr)
-        return;
+    if (!isValid) return;
     static char buffer[32] = {};
     int millisec;
     tm* tm_info;
@@ -64,68 +59,48 @@ void logger(const char* tag, const char* format, ...)
 
     tm_info = localtime(&tv.tv_sec);
     strftime(buffer, 32, "%d.%m.%Y %H:%M:%S", tm_info);
-    fprintf(fptr, "[%s.%03d] [%s]: ", buffer, millisec, tag);
+    fprintf(logStream, "[%s.%03d] ", buffer, millisec);
+}
 
+void Logger::init(const C_string filename)
+{
+    if (isValid || !filename) return;
+    logFile = std::string(filename);
+    logStream = fopen(filename, "w");
+    isValid = logStream;
+    if(isValid)
+        setvbuf(logStream, NULL, _IONBF, 0);
+}
+
+void Logger::push(const C_string tag, const C_string format, ...)
+{
+    if (!isValid) return;
+    printTime();
+
+    fprintf(logStream, "[%s]: ", tag);
 
     va_list argList;
     va_start(argList, format);
-    vfprintf(fptr, format, argList);
+    vfprintf(logStream, format, argList);
     va_end(argList);
 
-    fprintf(fptr, "\n");
+    fprintf(logStream, "\n");
 }
 
-/**
-\brief Функция, направляющая сообщение Assert_c в лог
-\note  Смотри макрос Assert_c(exp)
-*/
-void loggerAssert(const char* expr, const char* file,const char* funciton, unsigned line)
+void Logger::assertion(const C_string expr, const C_string file, const C_string function, ui32 line)
 {
-    if (!fptr)
-        return;
-    static char buffer[32] = {};
-    int millisec;
-    tm* tm_info;
-    timeval tv;
-
-    gettimeofday(&tv, NULL);
-
-    millisec = (int)(tv.tv_usec / 1000.0);
-    if (millisec >= 1000)
-    {
-        millisec -= 1000;
-        tv.tv_sec++;
-    }
-
-    tm_info = localtime(&tv.tv_sec);
-    strftime(buffer, 32, "%d.%m.%Y %H:%M:%S", tm_info);
-    fprintf(fptr,"[%s.%03d] [%s]: Expression %s is false.\nIn file: %s\nfunction: %s\nline: %d\n",buffer,millisec,"Assert", expr, file, funciton, line);
+    if (!isValid) return;
+    push("Assert",
+         "Expression %s is false.\nIn file: %s\nfunction: %s\nline: %d",
+         expr,
+         file,
+         function,
+         line);
 }
 
-/**
-\brief Функция инициализации файла-лога
-*/
-void loggerInit(const char* filename,const char* mode)
+Logger::~Logger()
 {
-    if (!filename)
-    {
-        fptr = stdout;
-        return;
-    }
-    if (fptr)
-        return;
-    fptr = fopen(filename, mode);
-    if (!fptr)
-        return;
-    setvbuf(fptr, NULL, _IONBF, 0);
+    if (logStream)
+        fclose(logStream);
 }
 
-/**
-\brief Функция уничтожения логгера
-\note  Данная функция просто вызывает fclose()
-*/
-void loggerDestr()
-{
-    if(fptr)
-        fclose(fptr);
-}

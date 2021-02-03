@@ -1,6 +1,6 @@
 #include"ASM2LLVM.h"
 
-void ASM2LLVMBuilder::LLVMPreparation(const C_string sourceFile)
+TranslatorError ASM2LLVMBuilder::LLVMPreparation(const C_string sourceFile)
 {
     module = new Module("Main_module", context);
     module->setSourceFileName(sourceFile);
@@ -30,8 +30,9 @@ void ASM2LLVMBuilder::LLVMPreparation(const C_string sourceFile)
     builder.CreateRetVoid();
 
 
-    for(ui32 i = 0; i < bbArray.size() - 1; i++)
+    for(i32 i = 0; i < bbArray.size() - 1; i++)
         if(!bbArray[i].bb)
             bbArray[i].bb = BasicBlock::Create(context, "BB_" + std::to_string(i), funcArray[bbArray[i].funcIndex].first);
 
+    return TR_OK;
 }

@@ -120,7 +120,7 @@ void CPU::init(const InputParams inParam)
     if (myCPU.ramSize > 1024 * 512)
     {
         myCPU.isValid = 0;
-        logger("CPU error", "I'm not sure that you really want too much memory: %d.", myCPU.ramSize);
+        logger.push("CPU error", "I'm not sure that you really want too much memory: %d.", myCPU.ramSize);
         return;
     }
     myCPU.RAM = (ui8*)calloc(myCPU.ramSize, sizeof(ui8));
@@ -129,7 +129,7 @@ void CPU::init(const InputParams inParam)
     if (!myCPU.RAM)
     {
         myCPU.isValid = 0;
-        logger("CPU error", "We can't alloc memory for virtual RAM.");
+        logger.push("CPU error", "We can't alloc memory for virtual RAM.");
         return;
     }
     StackError errorCode = (StackError)stackInit(&myCPU.stack, 0);
@@ -139,7 +139,7 @@ void CPU::init(const InputParams inParam)
         myCPU.isValid = 0;
         free(myCPU.RAM);
         myCPU.RAM = nullptr;
-        logger("CPU error", "There are some problems with init stack.");
+        logger.push("CPU error", "There are some problems with init stack.");
         return;
     }
     myCPU.stack.capacity = -1;
@@ -393,7 +393,7 @@ CPUerror CPU::evaluate()
         ui32 indexCalledFunc = cmd.code.bits.opCode;
         if (indexCalledFunc >= FUNCTION_TABLE_SIZE)
         {
-            logger("CPU error", "Invalid machine code of command.");
+            logger.push("CPU error", "Invalid machine code of command.");
             dump();
             return CPU_ERROR_INVALID_COMMAND;
         }
@@ -402,14 +402,14 @@ CPUerror CPU::evaluate()
 
         if (myCPU.interruptCode)
         {
-            logger("CPU error", "Catch exception after execution command:");
-            Disassembler::Instance().disasmCommand(cmd, getLoggerStream());
+            logger.push("CPU error", "Catch exception after execution command:");
+            Disassembler::Instance().disasmCommand(cmd, logger.getStream());
             dump();
             return CPU_ERROR_EXCEPTION;
         }
         if (myCPU.Register.eip >= myCPU.ramSize)
         {
-            logger("CPU error", "Register epi quite big for RAM.");
+            logger.push("CPU error", "Register epi quite big for RAM.");
             dump();
             return CPU_ERROR_EPI_OUT_OF_RANE;
         }
@@ -432,25 +432,25 @@ CPUerror CPU::run(ui8* bytes, ui32 size, ui32 ptrStart)
 {
     if (!myCPU.isValid)
     {
-        logger("CPU error", "You try to evaluate program on broken CPU.");
+        logger.push("CPU error", "You try to evaluate program on broken CPU.");
         return CPU_ERROR_INVALID_STRUCUTE;
     }
     Assert_c(bytes);
     if (!bytes)
     {
-        logger("CPU error", "You try execute program, located by NULL pointer.");
+        logger.push("CPU error", "You try execute program, located by NULL pointer.");
         return CPU_INVALID_INPUT_DATA;
     }
     Assert_c(size > 0);
     if (size <= 0)
     {
-        logger("CPU error", "You try execute program, that have incorrect size:%d", size);
+        logger.push("CPU error", "You try execute program, that have incorrect size:%d", size);
         return CPU_INVALID_INPUT_DATA;
     }
     Assert_c(ptrStart + size + 1 < myCPU.ramSize);
     if (ptrStart + size + 1 >= myCPU.ramSize)
     {
-        logger("CPU error", "Your program doesn't fit in RAM. Try to change ptrStart or write small program");
+        logger.push("CPU error", "Your program doesn't fit in RAM. Try to change ptrStart or write small program");
         return CPU_INVALID_INPUT_DATA;
     }
 

@@ -9,7 +9,7 @@
 #include "Tools/Logger.h"
 #include "Tools/CallStack.h"
 #include "CPU/CPU.h"
-#include "ASM2LLVM.h"
+#include "ASM2LLVM/ASM2LLVM.h"
 #include <iostream>
 #include <fstream>
 
@@ -69,7 +69,8 @@ int main(int argc, char** argv)
     initCallStack();
     $
     parseConsoleArguments(argc, argv, &inputParams);
-    loggerInit(inputParams.noLogFileFlag ? NULL : inputParams.logFilename, "w");
+    Logger::Instance().init(inputParams.noLogFileFlag ? NULL : inputParams.logFilename);
+    //loggerInit(inputParams.noLogFileFlag ? NULL : inputParams.logFilename, "w");
     
     inputParams.memorySize = 128;
     CPU::Instance().init(inputParams);
@@ -77,7 +78,8 @@ int main(int argc, char** argv)
     ASM2LLVMBuilder& builder = ASM2LLVMBuilder::Instance();
     builder.ASM2LLVM(inputParams.inputFilename, inputParams.outputFilename);
 
-    loggerDestr();
+    Logger::Instance().~Logger();
+    //loggerDestr();
 
     system("pause");
     $$ return 0;

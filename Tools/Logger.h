@@ -1,18 +1,39 @@
 #pragma once
 #include <stdio.h>
 #include <stdlib.h>
+#include <string>
+#include "Types.h"
 
 #ifdef __GNUG__
 #define __FUNCSIG__ __PRETTY_FUNCTION__
 #endif
 
-#define Assert_c(expr) if(!(expr)) loggerAssert(#expr,__FILE__,__FUNCSIG__,__LINE__);
 
+typedef FILE* Stream;
 
-FILE* getLoggerStream();
+class Logger
+{
+    public:
+        static Logger& Instance()
+        {
+            return theInstance;
+        }
+        void init(const C_string filename);
+        void push(const C_string tag, const C_string format, ...);
+        void assertion(const C_string expr, const C_string file, const C_string function, ui32 line);
+        const Stream getStream();
+        ~Logger();
+    private:
+        bool isValid = 0;
+        std::string logFile;
+        Stream logStream;
+        static Logger theInstance;
+        void printTime();
+        Logger() {};
+        Logger(const Logger&) = delete;
+        Logger& operator=(const Logger&) = delete;
+};
 
+extern Logger& logger;
 
-void logger(const char* tag, const char* format, ...);
-void loggerAssert(const char* expr, const char* file,const char* function, unsigned line);
-void loggerInit(const char* filename,const char* mode = "a");
-void loggerDestr();
+#define Assert_c(expr) if(!(expr)) Logger::Instance().assertion(#expr,__FILE__,__FUNCSIG__,__LINE__);

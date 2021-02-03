@@ -350,7 +350,7 @@ void _stackDump(const void* stk, const dbgCallInfo dbgInfo,FILE* outStream)
     }
 
     if(!outStream)
-        outStream = getLoggerStream();
+        outStream = logger.getStream();
     if (!outStream)
         return;
 
@@ -360,8 +360,6 @@ void _stackDump(const void* stk, const dbgCallInfo dbgInfo,FILE* outStream)
     ui32 size = stack->size;
     char* ptrData = (char*)stack->data;
     
-    if (outStream != stdout)
-        logger("Dump", "");
 
     fprintf(outStream,"Dump has called from\nfile:%s\nfunction:%s\nline: %d\n", dbgInfo.file, dbgInfo.func, dbgInfo.line);
     fprintf(outStream,"Stack[0x%X] (variable name: %s) {\n", (char*)stk, dbgInfo.varName);

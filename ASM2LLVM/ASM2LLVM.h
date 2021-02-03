@@ -31,11 +31,18 @@ using Assembler::AsmError;
 
 extern const ui8 COUNT_REGISTERS;
 
+
+enum TranslatorError
+{
+    TR_OK,
+    TR_ERROR_PARSE_BINARY,
+    TR_ERROR_CODE_GENERATION
+};
+
 class ASM2LLVMBuilder
 {
     private:
         vector<Command> commandList;
-
 
         struct BlockInfo
         {
@@ -56,6 +63,8 @@ class ASM2LLVMBuilder
         LLVMContext context;
         Module* module;
         IRBuilder<> builder;
+
+
     public:
         Disassembler& disasembler;
         static ASM2LLVMBuilder& Instance()
@@ -75,29 +84,20 @@ class ASM2LLVMBuilder
 
         const ui32 RING_BUFFER_CAPACITY = 8;
 
-        void parseBinaryStage(const C_string inputFile);
-        void genBBListStage();
-        void LLVMPreparation(const C_string sourceFile);
-        void codeGenerationStage();
-        void codePrintStage();
+        TranslatorError parseBinaryStage(const C_string inputFile);
+        TranslatorError genBBListStage();
+        TranslatorError LLVMPreparation(const C_string sourceFile);
+        TranslatorError codeGenerationStage();
+        TranslatorError codePrintStage();
 
         void LLVMRun();
 
         #ifdef LLVM_IR_SIMPLEST_PROGRAMM
             void LLVMGenSimplestProgram(const C_string sourceFile);
         #endif
+
 };
 
-/*
-    TODO:
-    [x] переделать алгоритм преобразовани¤ адресов в номера команд (использовать unordered map)
-        [x] избавитьс¤ от мапы bbArray
-    [x] добавить работу со стеком
-    [x] поддержка операндов, обращающихс¤ к пам¤ти
-    [x] поддержка call, ret
-    [x] блок инициализации в начале каждой функции
-    [ ] написать обработчик ошибок дл¤ каждой стади трансл¤ции
-*/
 
 #define LLVM_IR_DEBUG_CODE 0
 //#define LLVM_IR_SIMPLEST_PROGRAMM

@@ -383,12 +383,12 @@ static AsmError genBytes(const char* codeLine, Label* lables, ui32 nLables, ui8*
             continue;
         if (lxt != LEX_COMMAND)
         {
-            logger("Compilator error", "Lexema: \"%s\" is not command, but should be...", ptr);
+            logger.push("Compilator error", "Lexema: \"%s\" is not command, but should be...", ptr);
             return ASM_ERROR_INVALID_SYNTAX;
         }
         if (!ptr)
         {
-            logger("Compilator error", "We can't read lexema.\n");
+            logger.push("Compilator error", "We can't read lexema.\n");
             return ASM_ERROR_CANT_READ_LEXEMA;
         }
 
@@ -399,7 +399,7 @@ static AsmError genBytes(const char* codeLine, Label* lables, ui32 nLables, ui8*
             ptr = (char*)readNextLexema((char**)&codeLine, &lxt);
             if (!ptr)
             {
-                logger("Compilator error", "We can't read lexema.\n");
+                logger.push("Compilator error", "We can't read lexema.\n");
                 return ASM_ERROR_CANT_READ_LEXEMA;
             }
             if (lxt == LEX_NUMBER)
@@ -419,7 +419,7 @@ static AsmError genBytes(const char* codeLine, Label* lables, ui32 nLables, ui8*
                 cmd.operand[i].ivalue = getMemoryOperand(ptr, lables, nLables);
                 if (cmd.operand[i].ivalue == ASM_ERROR_CODE)
                 {
-                    logger("Compilator error", "Invalid link to memory: \"%s\" ", ptr);
+                    logger.push("Compilator error", "Invalid link to memory: \"%s\" ", ptr);
                     return ASM_ERROR_INVALID_OPERAND_SYNTAX;
                 }
                 setOperandType(cmd, i, lxt == LEX_MEMORY ? OPERAND_MEMORY : OPERAND_MEM_BY_REG);
@@ -427,7 +427,7 @@ static AsmError genBytes(const char* codeLine, Label* lables, ui32 nLables, ui8*
             }
             if (lxt == LEX_LABEL)
             {
-                logger("Compilator error", "Invalid operand: \"%s\" ", ptr);
+                logger.push("Compilator error", "Invalid operand: \"%s\" ", ptr);
                 return ASM_ERROR_INVALID_OPERAND_SYNTAX;
             }
             if (lxt == LEX_ERROR)
@@ -435,7 +435,7 @@ static AsmError genBytes(const char* codeLine, Label* lables, ui32 nLables, ui8*
                 int labelIndex = getLabel(ptr, lables, nLables);
                 if (labelIndex == -1)
                 {
-                    logger("Compilator error", "Invalid lexema: \"%s\" ", ptr);
+                    logger.push("Compilator error", "Invalid lexema: \"%s\" ", ptr);
                     return ASM_ERROR_INVALID_SYNTAX;
                 }
                 setOperandType(cmd, i, OPERAND_NUMBER);
@@ -452,13 +452,13 @@ static AsmError genBytes(const char* codeLine, Label* lables, ui32 nLables, ui8*
         AsmError errorCode = checkValidityOfOperands(cmd);
         if (errorCode == ASM_ERROR_INVALID_OPERAND_TYPE_FOR_COMMAND)
         {
-            logger("Compilator error", "Invalid type of operand for current command.");
-            Disassembler::Instance().disasmCommand(cmd, getLoggerStream());
+            logger.push("Compilator error", "Invalid type of operand for current command.");
+            Disassembler::Instance().disasmCommand(cmd, logger.getStream());
             return ASM_ERROR_INVALID_OPERAND_TYPE_FOR_COMMAND;
         }
         if (errorCode == ASM_ERROR_INVALID_MACHINE_CODE)
         {
-            logger("Compilator error", "Has been generated invalid machine code: 0x%X", cmd.code.marchCode);
+            logger.push("Compilator error", "Has been generated invalid machine code: 0x%X", cmd.code.marchCode);
             return ASM_ERROR_INVALID_MACHINE_CODE;
         }
 
@@ -495,7 +495,7 @@ static AsmError throwMachineCodeIntoStream(ui8* bytes, ui32 nBytes, FILE* outStr
         return ASM_ERROR_INVALID_INPUT_DATA;
     if (ferror(outStream))
     {
-        logger("Access error", "In function %s. There are problems with file stream.", __FUNCSIG__);
+        logger.push("Access error", "In function %s. There are problems with file stream.", __FUNCSIG__);
         return ASM_ERROR_CANT_WRITE_INTO_FILE;
     }
 

@@ -7,7 +7,7 @@
 using namespace Assembler;
 
 
-void ASM2LLVMBuilder::codePrintStage()
+TranslatorError ASM2LLVMBuilder::codePrintStage()
 {
     string s;
     raw_string_ostream os(s);
@@ -17,6 +17,7 @@ void ASM2LLVMBuilder::codePrintStage()
     printf("%s\n", s.c_str());
     printf("#[LLVM IR] END\n\n\n");
     system("pause");
+    return TR_OK;
 }
 
 AsmError ASM2LLVMBuilder::ASM2LLVM(const C_string inputFile, const C_string outFile)

@@ -2,11 +2,11 @@
 \file    В данном фалй описываются команды языка ассмеблера, а так же их реализации применительно
          к эмуляции на виртуальном процессоре.
 \details Для задания новой команды требудется вызвать макрос, прототип которого имеет вид:
-         #define DEF(name, machineCode, validStrOperand_1, validStrOperand_2, code)
+         #define DEF(name, mCode, vStr1, vStr2, code)
          name --- имя команды, указывается ЗАГЛАВНЫМИ буквами
-         machineCode --- машинный код команды, правило формирования кода указано ниже
-         validStrOperand_1 --- строка допустимых типов первого операнда, правило формирование смотри ниже
-         validStrOperand_2 --- строка допустимых типов второго операнда, правило формирование смотри ниже
+         mCode --- машинный код команды, правило формирования кода указано ниже
+         vStr1 --- строка допустимых типов первого операнда, правило формирование смотри ниже
+         vStr2 --- строка допустимых типов второго операнда, правило формирование смотри ниже
          code --- код функции, реализующий действие команды на процессоре
 
          Рассмотрим пример раскрытия макроса как функции:
@@ -35,28 +35,35 @@
          0b11 --- operand is memory, based by register
 
 
-         Типы символов в строках validOperand:
+         Типы символов в строках vSrt:
          R --- operand is Register
          N --- operand is Number
          M --- operand is Memory, based by number
          B --- operand is memory, Based by register
          Пример:
-         Для команды mov строка validOperand будет равна "RMB" для первого операнда и "RNMB" для второго операнда.
+         Для команды mov строка vSrt будет равна "RMB" для первого операнда и "RNMB" для второго операнда.
          Такое кодирование означает, что команда mov не может записать данные в число.
 
 */
 
+#define make_code(start, offset, nOperands)\
+    (start + offset) << 8 | 0 << 6 | 0 << 4 | 0 << 2 | (nOperands) 
 #define isInterruptOccur() if(myCPU.interruptCode) return;
+#define isFiniteOperands()\
+{\
+    if (dst && !myCPU.interruptCode) myCPU.interruptCode |= !std::isfinite(dst->fvalue);\
+    if (src && !myCPU.interruptCode) myCPU.interruptCode |= !std::isfinite(src->fvalue);\
+ }
 
 DEF(
     HLT,
-    0 << 8 | 0 << 4 | 0 << 2 | 0x0, "", "",
+    make_code(0,0,0), "", "",
     {}
 )
 
 DEF(
     MOV,
-    1 << 8 | 0 << 4 | 0 << 2 | 0x2, "RMB", "RNMB",
+    make_code(0,1,2), "RMB", "RNMB",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
@@ -69,82 +76,59 @@ DEF(
 
 DEF(
     ADD,
-    2 << 8 | 0 << 4 | 0 << 2 | 0x2, "RMB", "RNMB",
+    make_code(0,2,2), "RMB", "RNMB",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
         getOperandsPointer(cmd, &dst, &src);
         isInterruptOccur();
 
-
-        if (!myCPU.isFloatPointMath)
-            dst->ivalue += src->ivalue;
-        else
-            dst->fvalue += src->fvalue;
+        dst->ivalue += src->ivalue;
     }
 )
 
 DEF(
     SUB,
-    3 << 8 | 0 << 4 | 0 << 2 | 0x2, "RMB", "RNMB",
+    make_code(0,3,2), "RMB", "RNMB",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
         getOperandsPointer(cmd, &dst, &src);
         isInterruptOccur();
-        if (!myCPU.isFloatPointMath)
-            dst->ivalue -= src->ivalue;
-        else
-            dst->fvalue -= src->fvalue;
+        dst->ivalue -= src->ivalue;
     }
 )
 
 DEF(
     DIV,
-    4 << 8 | 0 << 4 | 0 << 2 | 0x2, "RMB", "RNMB",
+    make_code(0,4,2), "RMB", "RNMB",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
         getOperandsPointer(cmd, &dst, &src);
         isInterruptOccur();
-
-
-        if (!myCPU.isFloatPointMath)
-        {
-            if (src->ivalue == 0)
-                myCPU.interruptCode = 1; // при делении на ноль, возникает прерывание
-            else
-                dst->ivalue /= src->ivalue;
-        }
+        if (src->ivalue == 0)
+            myCPU.interruptCode = 1;
         else
-        {
-            if (isZero(src->ivalue))
-                myCPU.interruptCode = 1; // при делении на ноль, возникает прерывание
-            else
-                dst->fvalue /= src->fvalue;
-        }
+            dst->ivalue /= src->ivalue;
     }
 )
 
 DEF(
     MUL,
-    5 << 8 | 0 << 4 | 0 << 2 | 0x2, "RMB", "RNMB",
+    make_code(0,5,2), "RMB", "RNMB",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
         getOperandsPointer(cmd, &dst, &src);
         isInterruptOccur();
-
-        if (!myCPU.isFloatPointMath)
-            dst->ivalue *= src->ivalue;
-        else
-            dst->fvalue *= src->fvalue;
+        dst->ivalue *= src->ivalue;
     }
 )
 
 DEF(
     POP,
-    6 << 8 | 0 << 4 | 0 << 2 | 0x1, "RMB", "",
+    make_code(0,6,1), "RMB", "",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
@@ -164,7 +148,7 @@ DEF(
 
 DEF(
     PUSH,
-    7 << 8 | 0 << 4 | 0 << 2 | 0x1, "RNMB", "",
+    make_code(0,7,1), "RNMB", "",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
@@ -183,7 +167,7 @@ DEF(
 
 DEF(
     JMP,
-    8 << 8 | 0 << 4 | 0 << 2 | 0x1, "N", "",
+    make_code(0,8,1), "N", "",
     {
         myCPU.Register.eip = myCPU.Register.ecs + cmd->operand[0].ivalue;
     }
@@ -192,7 +176,7 @@ DEF(
 
 DEF(
     CMP,
-    9 << 8 | 0 << 4 | 0 << 2 | 0x2, "RNMB", "RNMB",
+    make_code(0,9,2), "RNMB", "RNMB",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
@@ -200,30 +184,17 @@ DEF(
         isInterruptOccur();
 
         OperandUnion result;
-
-        if (!myCPU.isFloatPointMath)
-            result.ivalue = dst->ivalue - src->ivalue;
-        else
-            result.fvalue = dst->fvalue - src->fvalue;
+        result.ivalue = dst->ivalue - src->ivalue;
 
         setBit(&myCPU.Register.efl, FLAG_CF, result.ivalue >> (sizeof(ui32) * 8 - 1));
-
-        if (!myCPU.isFloatPointMath)
-        {
-            setBit(&myCPU.Register.efl, FLAG_ZF, result.ivalue == 0 ? 1 : 0);
-            setBit(&myCPU.Register.efl, FLAG_SF, result.ivalue >= 0 ? 0 : 1);
-        }
-        else
-        {
-            setBit(&myCPU.Register.efl, FLAG_ZF, isZero(result.fvalue));
-            setBit(&myCPU.Register.efl, FLAG_SF, result.fvalue >= 0 ? 0 : 1);
-        }
+        setBit(&myCPU.Register.efl, FLAG_ZF, result.ivalue == 0 ? 1 : 0);
+        setBit(&myCPU.Register.efl, FLAG_SF, result.ivalue >= 0 ? 0 : 1);
     }
 )
 
 DEF(
     JE,
-    10 << 8 | 0 << 4 | 0 << 2 | 0x1, "N", "",
+    make_code(0,10,1), "N", "",
     {
         if (getBit(myCPU.Register.efl, FLAG_ZF))
         myCPU.Register.eip = myCPU.Register.ecs + cmd->operand[0].ivalue;
@@ -232,7 +203,7 @@ DEF(
 
 DEF(
     JNE,
-    11 << 8 | 0 << 4 | 0 << 2 | 0x1, "N", "",
+    make_code(0,11,1), "N", "",
     {
         if (!getBit(myCPU.Register.efl, FLAG_ZF))
         myCPU.Register.eip = myCPU.Register.ecs + cmd->operand[0].ivalue;
@@ -241,7 +212,7 @@ DEF(
 
 DEF(
     JA,
-    12 << 8 | 0 << 4 | 0 << 2 | 0x1, "N", "",
+    make_code(0,12,1), "N", "",
     {
         if (!getBit(myCPU.Register.efl, FLAG_CF) && !getBit(myCPU.Register.efl, FLAG_ZF))
         myCPU.Register.eip = myCPU.Register.ecs + cmd->operand[0].ivalue;
@@ -250,7 +221,7 @@ DEF(
 
 DEF(
     JAE,
-    13 << 8 | 0 << 4 | 0 << 2 | 0x1, "N", "",
+    make_code(0,13,1), "N", "",
     {
         if (!getBit(myCPU.Register.efl, FLAG_CF))
         myCPU.Register.eip = myCPU.Register.ecs + cmd->operand[0].ivalue;
@@ -259,7 +230,7 @@ DEF(
 
 DEF(
     JB,
-    14 << 8 | 0 << 4 | 0 << 2 | 0x1, "N", "",
+    make_code(0,14,1), "N", "",
     {
         if (getBit(myCPU.Register.efl, FLAG_CF))
         myCPU.Register.eip = myCPU.Register.ecs + cmd->operand[0].ivalue;
@@ -268,7 +239,7 @@ DEF(
 
 DEF(
     JBE,
-    15 << 8 | 0 << 4 | 0 << 2 | 0x1, "N", "",
+    make_code(0,15,1), "N", "",
     {
         if (getBit(myCPU.Register.efl, FLAG_CF) || getBit(myCPU.Register.efl, FLAG_ZF))
         myCPU.Register.eip = myCPU.Register.ecs + cmd->operand[0].ivalue;
@@ -277,7 +248,7 @@ DEF(
 
 DEF(
     CALL,
-    16 << 8 | 0 << 4 | 0 << 2 | 0x1, "N", "",
+    make_code(0,16,1), "N", "",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
@@ -294,7 +265,7 @@ DEF(
 
 DEF(
     RET,
-    17 << 8 | 0 << 4 | 0 << 2 | 0x0, "", "",
+    make_code(0,17,0), "", "",
     {
         ui32 ptrReturn = 0;
 
@@ -306,99 +277,47 @@ DEF(
     }
 )
 
-DEF(
-    FPMON,
-    18 << 8 | 0 << 4 | 0 << 2 | 0x0, "", "",
-    {
-        myCPU.isFloatPointMath = 1;
-    }
-)
 
 DEF(
-    FPMOFF,
-    19 << 8 | 0 << 4 | 0 << 2 | 0x0, "", "",
-    {
-        myCPU.isFloatPointMath = 0;
-    }
-)
-
-
-DEF(
-    SQRT,
-    20 << 8 | 0 << 4 | 0 << 2 | 0x1, "RNMB", "",
-    {
-        OperandUnion* dst = (OperandUnion*)&myCPU.Register.eax;
-        OperandUnion* src = NULL;
-        getOperandsPointer(cmd, &src, &dst);
-        isInterruptOccur();
-
-        if (src->fvalue < 0 || !myCPU.isFloatPointMath)
-        {
-            myCPU.interruptCode = 3; // извлечение корня из отрицательного числа
-            return;
-        }
-        dst->fvalue = sqrt(src->fvalue);
-    }
-)
-
-
-DEF(
-    TRUNC,
-    21 << 8 | 0 << 4 | 0 << 2 | 0x1, "RMB", "",
+    OR,
+    make_code(0,18,2), "RMB", "RNMB",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
         getOperandsPointer(cmd, &dst, &src);
         isInterruptOccur();
-
-        dst->ivalue = static_cast<ui32>(dst->fvalue);
+        dst->ivalue = dst->ivalue || src->ivalue;
     }
 )
 
-
 DEF(
-    SIN,
-    22 << 8 | 0 << 4 | 0 << 2 | 0x1, "RNMB", "",
+    AND,
+    make_code(0,19,2), "RMB", "RNMB",
     {
-        OperandUnion* dst = (OperandUnion*)&myCPU.Register.eax;
+        OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
-        getOperandsPointer(cmd, &src, &dst);
+        getOperandsPointer(cmd, &dst, &src);
         isInterruptOccur();
-
-        if (!myCPU.isFloatPointMath)
-        {
-            myCPU.interruptCode = 3; // должна быть включена арифметика с плавающей точкой
-            return;
-        }
-
-        dst->fvalue = sinf(src->fvalue);
+        dst->ivalue = dst->ivalue && src->ivalue;
     }
 )
 
-
 DEF(
-    COS,
-    23 << 8 | 0 << 4 | 0 << 2 | 0x1, "RNMB", "",
+    XOR,
+    make_code(0,20,2), "RMB", "RNMB",
     {
-        OperandUnion* dst = (OperandUnion*)&myCPU.Register.eax;
+        OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
-        getOperandsPointer(cmd, &src, &dst);
+        getOperandsPointer(cmd, &dst, &src);
         isInterruptOccur();
-
-        if (!myCPU.isFloatPointMath)
-        {
-            myCPU.interruptCode = 3; // должна быть включена арифметика с плавающей точкой
-            return;
-        }
-
-        dst->fvalue = cosf(src->fvalue);
+        dst->ivalue = dst->ivalue ^ src->ivalue;
     }
 )
 
 
 DEF(
     MOVB,
-    24 << 8 | 0 << 4 | 0 << 2 | 0x2, "RMB", "RNMB",
+    make_code(0,21,2), "RMB", "RNMB",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
@@ -407,13 +326,12 @@ DEF(
 
         ui8 srcB = src->ivalue;
         memcpy(dst, &srcB, sizeof(ui8));
-
     }
 )
 
 DEF(
     MOVW,
-    25 << 8 | 0 << 4 | 0 << 2 | 0x2, "RMB", "RNMB",
+    make_code(0,22,2), "RMB", "RNMB",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
@@ -421,137 +339,250 @@ DEF(
         isInterruptOccur();
         ui16 srcW = src->ivalue;
         memcpy(dst, &srcW, sizeof(ui16));
+    }
+)
 
+
+DEF(
+    OUT,
+    make_code(0,23,1), "RNMB", "",
+    {
+        OperandUnion* dst = NULL;
+        OperandUnion* src = NULL;
+        getOperandsPointer(cmd, &dst, &src);
+        isInterruptOccur();
+
+        printf("0x%04X \t(float: %f)\n", dst->ivalue & 0xFFFF, dst->fvalue);
+    }
+)
+
+
+DEF(
+    IN,
+    make_code(0,24,1), "RMB", "",
+    {
+        OperandUnion* dst = NULL;
+        OperandUnion* src = NULL;
+        getOperandsPointer(cmd, &dst, &src);
+        isInterruptOccur();
+        printf("enter int:");
+        scanf("%d", &dst->ivalue);
     }
 )
 
 DEF(
-    DUMP,
-    26 << 8 | 0 << 4 | 0 << 2 | 0x0, "", "",
+    FIN,
+    make_code(0,25,1), "RMB", "",
     {
-        Disassembler::Instance().disasmCommand(*cmd, stdout);
+        OperandUnion* dst = NULL;
+        OperandUnion* src = NULL;
+        getOperandsPointer(cmd, &dst, &src);
+        isInterruptOccur();
+        printf("enter float:");
+        scanf("%f", &dst->fvalue);
+    }
+)
+
+
+DEF(
+    DUMP,
+    make_code(0,26,0), "", "",
+    {
         CPU::Instance().dump();
         system("pause");
     }
 )
 
+
+// ==========================================================
+
+//                 float point operation
+
+// ==========================================================
+
+#define FPU_ISA_START_CODE 27
+
+//integer -> float
 DEF(
-    FLOAT,
-    27 << 8 | 0 << 4 | 0 << 2 | 0x1, "RMB", "",
+    FILD,
+    make_code(FPU_ISA_START_CODE,0,1), "RMB", "",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
         getOperandsPointer(cmd, &dst, &src);
         isInterruptOccur();
-
+        
         dst->fvalue = static_cast<float>(dst->ivalue);
     }
 )
 
+//float -> integer
 DEF(
-    OUT,
-    28 << 8 | 0 << 4 | 0 << 2 | 0x1, "RNMB", "",
+    FISTP,
+    make_code(FPU_ISA_START_CODE,1,1), "RMB", "",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
         getOperandsPointer(cmd, &dst, &src);
+        isFiniteOperands();
+        isInterruptOccur();
+        dst->ivalue = static_cast<float>(dst->fvalue);
+    }
+)
+
+
+DEF(
+    FCOMP,
+    make_code(FPU_ISA_START_CODE,2,2), "RNMB", "RNMB",
+    {
+        OperandUnion* dst = NULL;
+        OperandUnion* src = NULL;
+        getOperandsPointer(cmd, &dst, &src);
+        isFiniteOperands();
         isInterruptOccur();
 
+        OperandUnion result;
+        result.fvalue = dst->fvalue - src->fvalue;
 
-
-        if (myCPU.isFloatPointMath)
-            printf("%f\n", dst->fvalue);
-        else
-            printf("%d (0x%X)\n", static_cast<i32>(dst->ivalue), dst->ivalue);
+        setBit(&myCPU.Register.efl, FLAG_CF, result.ivalue >> (sizeof(ui32) * 8 - 1));
+        setBit(&myCPU.Register.efl, FLAG_ZF, isZero(result.fvalue));
+        setBit(&myCPU.Register.efl, FLAG_SF, result.fvalue >= 0 ? 0 : 1);
     }
 )
 
 DEF(
-    IN,
-    29 << 8 | 0 << 4 | 0 << 2 | 0x1, "RMB", "",
+    FADD,
+    make_code(FPU_ISA_START_CODE,3,2), "RMB", "RNMB",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
         getOperandsPointer(cmd, &dst, &src);
+        isFiniteOperands();
         isInterruptOccur();
-
-
-        if (myCPU.isFloatPointMath)
-        {
-            printf("enter float:");
-            scanf("%f", &dst->fvalue);
-        }
-        else
-        {
-            printf("enter int:");
-            scanf("%d", &dst->ivalue);
-        }
+        dst->fvalue += src->fvalue;
     }
 )
 
 DEF(
-    OR,
-    30 << 8 | 0 << 4 | 0 << 2 | 0x2, "RMB", "RNMB",
+    FSUB,
+    make_code(FPU_ISA_START_CODE,4,2), "RMB", "RNMB",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
         getOperandsPointer(cmd, &dst, &src);
+        isFiniteOperands();
         isInterruptOccur();
-
-        if (!myCPU.isFloatPointMath)
-            dst->ivalue = dst->ivalue || src->ivalue;
-        else
-            dst->fvalue = isZero(dst->fvalue) || isZero(src->fvalue) ? 1.0 : 0.0;
+        dst->fvalue -= src->fvalue;
     }
 )
 
 DEF(
-    AND,
-    31 << 8 | 0 << 4 | 0 << 2 | 0x2, "RMB", "RNMB",
+    FDIV,
+    make_code(FPU_ISA_START_CODE,5,2), "RMB", "RNMB",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
         getOperandsPointer(cmd, &dst, &src);
+        isFiniteOperands();
         isInterruptOccur();
 
-        if (!myCPU.isFloatPointMath)
-            dst->ivalue = dst->ivalue && src->ivalue;
+        if (isZero(src->ivalue))
+            myCPU.interruptCode = 1;
         else
-            dst->fvalue = !isZero(dst->fvalue) && !isZero(src->fvalue) ? 1.0 : 0.0;
+            dst->fvalue /= src->fvalue;
+    }
+)
+
+DEF(
+    FMUL,
+    make_code(FPU_ISA_START_CODE,6,2), "RMB", "RNMB",
+    {
+        OperandUnion* dst = NULL;
+        OperandUnion* src = NULL;
+        getOperandsPointer(cmd, &dst, &src);
+        isFiniteOperands();
+        isInterruptOccur();
+
+        dst->fvalue *= src->fvalue;
+    }
+)
+
+DEF(
+    FSQRT,
+    make_code(FPU_ISA_START_CODE,7,1), "RMB", "",
+    {
+        OperandUnion* dst = NULL;
+        OperandUnion* src = NULL;
+        getOperandsPointer(cmd, &dst, &src);
+        isFiniteOperands();
+        isInterruptOccur();
+        if(dst->fvalue < 0)
+            myCPU.interruptCode = 1;
+        else
+            dst->fvalue = sqrt(dst->fvalue);
+    }
+)
+
+DEF(
+    FSIN,
+    make_code(FPU_ISA_START_CODE,8,1), "RMB", "",
+    {
+        OperandUnion* dst = NULL;
+        OperandUnion* src = NULL;
+        getOperandsPointer(cmd, &dst, &src);
+        isFiniteOperands();
+        isInterruptOccur();
+        dst->fvalue = sinf(dst->fvalue);
+    }
+)
+
+DEF(
+    FCOS,
+    make_code(FPU_ISA_START_CODE,9,1), "RMB", "",
+    {
+        OperandUnion* dst = NULL;
+        OperandUnion* src = NULL;
+        getOperandsPointer(cmd, &dst, &src);
+        isFiniteOperands();
+        isInterruptOccur();
+        dst->fvalue = cosf(dst->fvalue);
     }
 )
 
 DEF(
     ABS,
-    32 << 8 | 0 << 4 | 0 << 2 | 0x1, "RNMB", "",
+    make_code(FPU_ISA_START_CODE,10,1), "RMB", "",
     {
         OperandUnion* dst = (OperandUnion*)&myCPU.Register.eax;
         OperandUnion* src = NULL;
         getOperandsPointer(cmd, &src, &dst);
         isInterruptOccur();
-
-        if (!myCPU.isFloatPointMath)
-            dst->ivalue = static_cast<ui32>(abs(static_cast<i32>(src->ivalue)));
-        else
-            dst->fvalue = abs(src->fvalue);
+        dst->ivalue *= dst->ivalue < 0 ? -1 : 1;
     }
 )
 
 DEF(
-    POW,
-    33 << 8 | 0 << 4 | 0 << 2 | 0x2, "RMB", "RNMB",
+    FABS,
+    make_code(FPU_ISA_START_CODE,11,1), "RMB", "",
+    {
+        OperandUnion* dst = (OperandUnion*)&myCPU.Register.eax;
+        OperandUnion* src = NULL;
+        getOperandsPointer(cmd, &src, &dst);
+        isInterruptOccur();
+        dst->fvalue *= dst->fvalue < 0 ? -1.0f : 1.0f;
+    }
+)
+
+
+DEF(
+    FPOW,
+    make_code(FPU_ISA_START_CODE,12,2), "RMB", "RNMB",
     {
         OperandUnion* dst = NULL;
         OperandUnion* src = NULL;
         getOperandsPointer(cmd, &dst, &src);
+        isFiniteOperands();
         isInterruptOccur();
-
-        if (!myCPU.isFloatPointMath)
-        {
-            myCPU.interruptCode = 3; // floating-point math should be on
-            return;
-        }
-
         dst->fvalue = powf(dst->fvalue, src->fvalue);
     }
 )

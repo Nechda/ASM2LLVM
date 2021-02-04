@@ -124,7 +124,6 @@ void CPU::init(const InputParams inParam)
         return;
     }
     myCPU.RAM = (ui8*)calloc(myCPU.ramSize, sizeof(ui8));
-    memset(myCPU.RAM, 0, myCPU.ramSize * sizeof(ui8));
     Assert_c(myCPU.RAM);
     if (!myCPU.RAM)
     {
@@ -264,7 +263,7 @@ void getOperandsPointer(Command* cmd, OperandUnion** dst, OperandUnion** src)
             break;
         case OPERAND_MEMORY:
             offset = myCPU.Register.eds;
-            offset += myCPU.isFloatPointMath ? static_cast<ui32>(cmd->operand[i].fvalue) : cmd->operand[i].ivalue;
+            offset += cmd->operand[i].ivalue;
             if (offset+sizeof(ui32) >= myCPU.ramSize)
             {
                 Assert_c(!"The command tries to access a nonexistent memory area!");

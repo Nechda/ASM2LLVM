@@ -20,11 +20,14 @@
 #include <llvm/ExecutionEngine/GenericValue.h>
 #include <llvm/Support/TargetSelect.h>
 
+#include <boost/circular_buffer.hpp>
+
+
 using std::vector;
-using std::map;
 using std::pair;
 using std::string;
 using namespace llvm;
+using boost::circular_buffer;
 using Assembler::Command;
 using Assembler::Disassembler;
 using Assembler::AsmError;
@@ -74,23 +77,24 @@ class ASM2LLVMBuilder
         }
         AsmError ASM2LLVM(const C_string inputFile, const C_string outFile);
     private:
-        ASM2LLVMBuilder() : builder(context),
+        ASM2LLVMBuilder() :
+            builder(context),
             disasembler(Disassembler::Instance()) {};
         ASM2LLVMBuilder(const ASM2LLVMBuilder&) = delete;
         ASM2LLVMBuilder& operator=(const ASM2LLVMBuilder&) = delete;
-
-
-        AsmError LLVMPareseCommand(const Command& cmd, bool& isBrhCommand, const BlockInfo& blockInfo);
-
-        const ui32 RING_BUFFER_CAPACITY = 8;
 
         TranslatorError parseBinaryStage(const C_string inputFile);
         TranslatorError genBBListStage();
         TranslatorError LLVMPreparation(const C_string sourceFile);
         TranslatorError codeGenerationStage();
         TranslatorError codePrintStage();
-
         void LLVMRun();
+
+        AsmError LLVMPareseCommand(const Command& cmd, bool& isBrhCommand, const BlockInfo& blockInfo);
+        AsmError parseExternalFunctions(const Command& cmd);
+        AsmError parseOperands(const Command& cmd);
+        AsmError parseGeneral(const Command& cmd, bool& isEndBBCmd);
+        AsmError parseBranches(const Command& cmd, bool& isEndBBCmd);
 
         #ifdef LLVM_IR_SIMPLEST_PROGRAMM
             void LLVMGenSimplestProgram(const C_string sourceFile);

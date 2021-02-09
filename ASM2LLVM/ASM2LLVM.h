@@ -23,6 +23,11 @@
 #include <boost/circular_buffer.hpp>
 
 
+#include <llvm/IRReader/IRReader.h>
+#include <llvm/Support/SourceMgr.h>
+
+
+
 using std::vector;
 using std::pair;
 using std::string;
@@ -41,6 +46,9 @@ enum TranslatorError
     TR_ERROR_PARSE_BINARY,
     TR_ERROR_CODE_GENERATION
 };
+
+//#define LLVM_IR_SIMPLEST_PROGRAMM
+#define LLVM_IR_PRINT_DISASSEMBLER
 
 class ASM2LLVMBuilder
 {
@@ -96,16 +104,24 @@ class ASM2LLVMBuilder
         AsmError parseGeneral(const Command& cmd, bool& isEndBBCmd);
         AsmError parseBranches(const Command& cmd, bool& isEndBBCmd);
 
+        
+        //need c++17
+        template<typename Rx_, typename ... Args>
+        using pMethod = Rx_ (IRBuilder<>::*)(Args ...);
+        template<typename Rx_, typename ... Args>
+        Value* createOnStack(pMethod<Rx_, Args ...> exec_func, Args ... args)
+        {
+            Value* res = (builder.*exec_func)(args ...);
+            ringBufValue.push_back(res);
+            return res;
+        }
+
         #ifdef LLVM_IR_SIMPLEST_PROGRAMM
             void LLVMGenSimplestProgram(const C_string sourceFile);
         #endif
 
 };
 
-
-#define LLVM_IR_DEBUG_CODE 0
-//#define LLVM_IR_SIMPLEST_PROGRAMM
-#define LLVM_IR_PRINT_DISASSEMBLER
 
 inline bool isBrachComand(const ui8 cmdOpCode)
 {

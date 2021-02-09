@@ -59,34 +59,39 @@ TranslatorError ASM2LLVMBuilder::codeGenerationStage()
 }
 
 
-
 #define CODE_GENERATE_MACRO
 #include "CodegenMacro.h"
+
+#define IRFuncPtr(f) &IRBuilder<>::Create##f
 
 /*
     \brief Макросы, генерирующие команды ir, сгенерированная команда помещается в стек
 */
-#define c_GEP(ptr, index)          DECLARE_FUNC_WITH_2_PARAMS(GEP)(ptr,index)
-#define c_ConstGEP1_32(ptr, index) DECLARE_FUNC_WITH_2_PARAMS_I(ConstGEP1_32)(ptr, index)
-//#define c_CastPtrInt32(ptr)      DECLARE_FUNC_WITH_2_PARAMS(PointerCast)(ptr,Type::getInt32PtrTy(context))
-//#define c_CastPtrFlt32(ptr)      DECLARE_FUNC_WITH_2_PARAMS(PointerCast)(ptr,Type::getFloatPtrTy(context))
-#define c_Load(ptr)                DECLARE_FUNC_WITH_1_PARAMS(Load)(ptr)
-#define c_Store(data, ptr)         DECLARE_FUNC_WITH_2_PARAMS(Store)(data, ptr); ringBufValue.pop_back()
 
-#define c_Add(op1, op2)            DECLARE_FUNC_WITH_2_PARAMS(Add) (op1, op2)
-#define c_Sub(op1, op2)            DECLARE_FUNC_WITH_2_PARAMS(Sub) (op1, op2) 
-#define c_Mul(op1, op2)            DECLARE_FUNC_WITH_2_PARAMS(Mul) (op1, op2)
-#define c_Div(op1, op2)            DECLARE_FUNC_WITH_2_PARAMS(FDiv)(op1, op2)
+#define c_GEP(ptr, index)          createOnStack<Value*, Value*, Value*  , const Twine&>(IRFuncPtr(GEP)         , ptr, index, "")
+#define c_ConstGEP1_32(ptr, index) createOnStack<Value*, Value*, unsigned, const Twine&>(IRFuncPtr(ConstGEP1_32), ptr, index, "")
 
-#define c_FAdd(op1, op2)            DECLARE_FUNC_WITH_2_PARAMS(FAdd) (op1, op2)
-#define c_FSub(op1, op2)            DECLARE_FUNC_WITH_2_PARAMS(FSub) (op1, op2) 
-#define c_FMul(op1, op2)            DECLARE_FUNC_WITH_2_PARAMS(FMul) (op1, op2)
-#define c_FDiv(op1, op2)            DECLARE_FUNC_WITH_2_PARAMS(FDiv)(op1, op2)
+#define c_Load(ptr)         createOnStack<LoadInst* , Value*, const Twine&>(IRFuncPtr(Load ), ptr , ""    )
+#define c_Store(data, ptr)  createOnStack<StoreInst*,Value*, Value* , bool>(IRFuncPtr(Store), data, ptr, 0); ringBufValue.pop_back()
 
-#define c_Not(op1, op2)            DECLARE_FUNC_WITH_1_PARAMS(Not)(op1)
-#define c_Cast_i1(op1)             DECLARE_FUNC_WITH_2_PARAMS(ICmpNE)(op1,builder.getInt32(0))
-#define c_And(op1, op2)      DECLARE_FUNC_WITH_2_UNION_PARAMS(And)(op1,op2)
-#define c_Or (op1, op2)      DECLARE_FUNC_WITH_2_UNION_PARAMS(Or )(op1,op2)
+#define c_FAdd(op1, op2)    createOnStack<Value*, Value*, Value*  , const Twine&,MDNode*>(IRFuncPtr(FAdd), op1, op2, "", nullptr)
+#define c_FSub(op1, op2)    createOnStack<Value*, Value*, Value*  , const Twine&,MDNode*>(IRFuncPtr(FSub), op1, op2, "", nullptr)
+#define c_FMul(op1, op2)    createOnStack<Value*, Value*, Value*  , const Twine&,MDNode*>(IRFuncPtr(FMul), op1, op2, "", nullptr)
+#define c_FDiv(op1, op2)    createOnStack<Value*, Value*, Value*  , const Twine&,MDNode*>(IRFuncPtr(FDiv), op1, op2, "", nullptr)
+
+#define c_Add(op1, op2)     createOnStack<Value*, Value*, Value*  , const Twine&,bool,bool>(IRFuncPtr(Add), op1, op2, "", 0, 0)
+#define c_Sub(op1, op2)     createOnStack<Value*, Value*, Value*  , const Twine&,bool,bool>(IRFuncPtr(Sub), op1, op2, "", 0, 0)
+#define c_Mul(op1, op2)     createOnStack<Value*, Value*, Value*  , const Twine&,bool,bool>(IRFuncPtr(Mul), op1, op2, "", 0, 0)
+#define c_Div(op1, op2)     c_FDiv(op1, op2)
+
+
+#define c_Not(op1)          createOnStack<Value*, Value*, const Twine&, MDNode*     >(IRFuncPtr(Not)   , op1, "")
+#define c_And(op1, op2)     createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(And)   , op1, op2, "")
+#define c_Or (op1, op2)     createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(Or)    , op1, op2, "")
+#define c_And_i64(op1,op2)  createOnStack<Value*, Value*, uint64_t    , const Twine&>(IRFuncPtr(And)   , op1, op2, "")
+#define c_Or_i64(op1,op2)   createOnStack<Value*, Value*, uint64_t    , const Twine&>(IRFuncPtr(Or)    , op1, op2, "")
+#define c_Cast_i1(op1)      createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(ICmpNE), op1, builder.getInt32(0), "")
+
 
 /*
     \brief Макросы, генерирующие команды ir, аргументы команд берутся из стека
@@ -98,7 +103,6 @@ TranslatorError ASM2LLVMBuilder::codeGenerationStage()
 #define s_Or()           DECLARE_FUNC_WITH_2_UNION_PARAMS_STK(Or)()
 #define s_Not()          DECLARE_FUNC_WITH_1_PARAMS_STK_1(ICmpEQ, Value)(builder.getInt32(0))
 #define s_Cast_i1()      DECLARE_FUNC_WITH_1_PARAMS_STK_1(ICmpNE, Value)(builder.getInt32(0))
-
 
 AsmError ASM2LLVMBuilder::parseExternalFunctions(const Command& cmd)
 {
@@ -326,7 +330,6 @@ AsmError ASM2LLVMBuilder::parseBranches(const Command& cmd, bool& isEndBBCmd)
 }
 
 
-
 AsmError ASM2LLVMBuilder::LLVMPareseCommand(const Command& cmd, bool& isBrhCommand, const BlockInfo& blockInfo)
 {
     if (ASM_OK == parseExternalFunctions(cmd))
@@ -338,3 +341,5 @@ AsmError ASM2LLVMBuilder::LLVMPareseCommand(const Command& cmd, bool& isBrhComma
         parseBranches(cmd, isBrhCommand);
     return ASM_OK;
 }
+
+#undef IRFuncPtr

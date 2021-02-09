@@ -23,7 +23,7 @@ BB_0:                                             ; preds = %entry
   %1 = load i32, i32* %0
   %2 = getelementptr i32, i32* %registers_0, i32 1
   %3 = load i32, i32* %2
-  %4 = mul i32 %1, %3
+  %4 = add i32 %1, %3
   store i32 %4, i32* %0
   call void @run_OUT(i64 23368624)
   ret void

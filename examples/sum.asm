@@ -1,5 +1,5 @@
 in eax
 in ebx
-mul eax, ebx
+add eax, ebx
 out ebx
 hlt

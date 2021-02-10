@@ -4,15 +4,15 @@ This directory contain source code for binary translator from [custom cpu archit
 This project was built with [llvm](https://github.com/llvm/llvm-project) (ver 10.0.0) and [Boost](https://www.boost.org/) (ver 1.72.0). The language standart is c++14.
 ## Command prompt
 After building the project, for example in file "translator", you can use flags such as:
-* **-i <filename>**  
+* **-i &lt;filename&gt;**  
 Sets the input file, this flag is required.
-* **-o <filename>**  
+* **-o &lt;filename&gt;**  
 Sets the output file. If this flag is not specified, then IR code prints on the screen.
-* **-l <filename>**  
+* **-l &lt;filename&gt;**  
 Sets the logfile name. If this flag is not specified, then by default logfile is "log.log".
 * **-r**  
 Run the programm after translation.
-* **--memorySize=<amount>**  
+* **--memorySize=&lt;amount&gt;**  
 Sets the virual RAM size in bytes. The minimum value is 128 bytes, and the maximum is 512 kB.
 
 ## Examples

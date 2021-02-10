@@ -28,6 +28,19 @@ void parseConsoleArguments(int argc, char** argv, InputParams* ptrInParams)
         case 'n':
             ptrInParams->noLogFileFlag = 1;
             break;
+        case 'r':
+            ptrInParams->runJIT = 1;
+            break;
+        case '-':
+            argv[i] += 2;
+            buf = strtok(argv[i], "=");
+
+            sscanf(strtok(NULL, "="), "%d", &intBuf);
+            if (!strcmp(buf, "memorySize"))
+                ptrInParams->memorySize = intBuf;
+
+            argv[i] -= 2;
+            break;
         default:
             *curStr = argv[i];
             break;

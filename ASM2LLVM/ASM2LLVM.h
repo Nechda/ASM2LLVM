@@ -44,59 +44,59 @@ enum TranslatorError
 {
     TR_OK,
     TR_ERROR_PARSE_BINARY,
-    TR_ERROR_CODE_GENERATION
+    TR_ERROR_CODE_GENERATION,
+    TR_ERROR_WRITING_IN_FILE
 };
 
 //#define LLVM_IR_SIMPLEST_PROGRAMM
 #define LLVM_IR_PRINT_DISASSEMBLER
 
-class ASM2LLVMBuilder
+class Translator
 {
     private:
-        vector<Command> commandList;
+        vector<Command> m_commandList;
 
         struct BlockInfo
         {
             BasicBlock* bb = nullptr;
-            ui32 sLine = 0;
-            ui32 eLine = 0;
+            ui32 sLine = 0; //first line in asm file for the block
+            ui32 eLine = 0; //last line in asm file for the block
             i32 funcIndex = 0;
         };
-        ui32 currBBIndex = 0;
-        vector<BlockInfo> bbArray;
-        vector<pair<Function*,ui32>> funcArray;
+        ui32 m_currBBIndex = 0;
+        vector<BlockInfo> m_bbArray;
+        vector<pair<Function*,ui32>> m_funcArray;
 
-        Value* ptr_reg_table;
-        Value* ptr_memory;
-        Function* mainFunc;
-
-
-        LLVMContext context;
-        Module* module;
-        IRBuilder<> builder;
+        Value* m_ptr_reg_table;
+        Value* m_ptr_memory;
+        Function* m_mainFunc;
 
 
+        LLVMContext m_context;
+        Module* m_module;
+        IRBuilder<> m_builder;
+
+        Disassembler& m_disasembler;
     public:
-        Disassembler& disasembler;
-        static ASM2LLVMBuilder& Instance()
+        static Translator& Instance()
         {
-            static ASM2LLVMBuilder theInstance;
+            static Translator theInstance;
             return theInstance;
         }
-        AsmError ASM2LLVM(const C_string inputFile, const C_string outFile);
+        TranslatorError ASM2LLVM(const C_string inputFile, const C_string outFile);
+        void runJIT();
     private:
-        ASM2LLVMBuilder() :
-            builder(context),
-            disasembler(Disassembler::Instance()) {};
-        ASM2LLVMBuilder(const ASM2LLVMBuilder&) = delete;
-        ASM2LLVMBuilder& operator=(const ASM2LLVMBuilder&) = delete;
+        Translator() :
+            m_builder(m_context),
+            m_disasembler(Disassembler::Instance()) {};
+        Translator(const Translator&) = delete;
+        Translator& operator=(const Translator&) = delete;
 
         TranslatorError parseBinaryStage(const C_string inputFile);
-        TranslatorError genBBListStage();
+        TranslatorError genBBStructureStage();
         TranslatorError LLVMPreparation(const C_string sourceFile);
         TranslatorError codeGenerationStage();
-        TranslatorError codePrintStage();
-        void LLVMRun();
+        TranslatorError codePrintStage(const C_string outFile);
 
         AsmError LLVMPareseCommand(const Command& cmd, bool& isBrhCommand, const BlockInfo& blockInfo);
         AsmError parseExternalFunctions(const Command& cmd);
@@ -105,13 +105,12 @@ class ASM2LLVMBuilder
         AsmError parseBranches(const Command& cmd, bool& isEndBBCmd);
 
         
-        //need c++17
         template<typename Rx_, typename ... Args>
         using pMethod = Rx_ (IRBuilder<>::*)(Args ...);
         template<typename Rx_, typename ... Args>
         Value* createOnStack(pMethod<Rx_, Args ...> exec_func, Args ... args)
         {
-            Value* res = (builder.*exec_func)(args ...);
+            Value* res = (m_builder.*exec_func)(args ...);
             ringBufValue.push_back(res);
             return res;
         }
@@ -123,7 +122,7 @@ class ASM2LLVMBuilder
 };
 
 
-inline bool isBrachComand(const ui8 cmdOpCode)
+inline bool isBranchCommand(const ui8 cmdOpCode)
 {
     return Assembler::CMD_JE <= cmdOpCode
         && cmdOpCode <= Assembler::CMD_JBE

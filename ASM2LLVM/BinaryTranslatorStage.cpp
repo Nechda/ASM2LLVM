@@ -80,15 +80,15 @@ void stupidRecalculate(vector<Command>& commandList)
             cmd.operand[0].ivalue = nCommand[cmd.operand[0].ivalue];
 }
 
-TranslatorError ASM2LLVMBuilder::parseBinaryStage(const C_string inputFile)
+TranslatorError Translator::parseBinaryStage(const C_string inputFile)
 {
     bool isErrorOccur = 0;
     i8* bytes = NULL;
     ui32 nBytes = 0;
     isErrorOccur |= initInStream(inputFile, &bytes, &nBytes);
-    isErrorOccur |= disasembler.generateCommandList(commandList, bytes, nBytes) != ASM_OK;
+    isErrorOccur |= m_disasembler.generateCommandList(m_commandList, bytes, nBytes) != ASM_OK;
     //теперь займемс¤ пересчетом адресов в номера команд
-    recalcAdrToCmdNumber(commandList);
+    recalcAdrToCmdNumber(m_commandList);
     if(bytes)
         free(bytes);
     return isErrorOccur ? TR_ERROR_PARSE_BINARY : TR_OK;

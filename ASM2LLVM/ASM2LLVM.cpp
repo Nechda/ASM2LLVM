@@ -2,53 +2,68 @@
 #include "CPU/CPU.h"
 #include <algorithm>
 #include <iostream>
-#include <list>
+
 
 using namespace Assembler;
 
 
-TranslatorError ASM2LLVMBuilder::codePrintStage()
+TranslatorError Translator::codePrintStage(const C_string outFile)
 {
+    TranslatorError errorCode = TR_OK;
+    Stream stream = nullptr;
+    stream = !outFile ? stdout : fopen(outFile, "w");
+    if (!stream)
+    {
+        logger.push("Warning", "{Print IR}: "
+            "There are problems related to open file: %s",
+            outFile);
+        errorCode = TR_ERROR_WRITING_IN_FILE;
+    }
+
     string s;
     raw_string_ostream os(s);
-    module->print(os, nullptr);
+    m_module->print(os, nullptr);
     os.flush();
-    printf("#[LLVM IR]:\n");
-    printf("%s\n", s.c_str());
-    printf("#[LLVM IR] END\n\n\n");
+    if(stream == stdout) fprintf(stream,"#[LLVM IR]:\n");
+    fprintf(stream,"%s\n", s.c_str());
+    if (stream == stdout) fprintf(stream,"#[LLVM IR] END\n\n\n");
     system("pause");
-    return TR_OK;
+    return errorCode;
 }
 
-AsmError ASM2LLVMBuilder::ASM2LLVM(const C_string inputFile, const C_string outFile)
+TranslatorError Translator::ASM2LLVM(const C_string inputFile, const C_string outFile)
 {
-    AsmError errorCode = ASM_OK;
+    TranslatorError errorCode = TR_OK;
+    #define errorCheck() if(errorCode != TR_OK) return errorCode;
 
     #ifndef LLVM_IR_SIMPLEST_PROGRAMM
         //stage 1 generate list of commands from binary file
-        parseBinaryStage(inputFile);
+        errorCode = parseBinaryStage(inputFile);
+        errorCheck();
 
-        //stage 2 init base block map structure, at the next stage we create llvm:BasicBlock*
-        genBBListStage();
+        //stage 2 init base block array structure & separate code by fuctions
+        errorCode = genBBStructureStage();
+        errorCheck();
 
-        //stage 3 prepare registers
+        //stage 3 allocate memory for BasicBlock* and Function* 
         LLVMPreparation(inputFile);
+        errorCheck();
 
         //stage 4 generate llvm ir by list of commands for every base block
         codeGenerationStage();
+        errorCheck();
 
         //stage 5 push IR into output file
-        codePrintStage();
-
-        //stage 6 run the LLVM IR
-        LLVMRun();
+        codePrintStage(outFile);
+        errorCheck();
     #else
         //generate simple LLVM IR program and run it
         LLVMGenSimplestProgram(inputFile);
     #endif
 
+    #undef errorCheck
 
-    return ASM_OK;
+    return TR_OK;
 }
 
 
@@ -68,7 +83,7 @@ void* lazyFunctionCreator(const string& funcName)
     return nullptr;
 }
 
-void ASM2LLVMBuilder::LLVMRun()
+void Translator::runJIT()
 {
     InitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
@@ -77,7 +92,7 @@ void ASM2LLVMBuilder::LLVMRun()
 
     std::string err_str;
 
-    ExecutionEngine* ee = EngineBuilder(std::unique_ptr<Module>(module))
+    ExecutionEngine* ee = EngineBuilder(std::unique_ptr<Module>(m_module))
         .setEngineKind(EngineKind::JIT)
         .setErrorStr(&err_str)
         .create();
@@ -95,47 +110,70 @@ void ASM2LLVMBuilder::LLVMRun()
     ee->addGlobalMapping("_ptr_mem", reinterpret_cast<ui64>(&adrToMemory));
 
     ee->finalizeObject();
-    
+
 
     printf("#[LLVM IR EXEC]:\n");
-    GenericValue result = ee->runFunction(mainFunc, vector<GenericValue>());
+    GenericValue result = ee->runFunction(m_mainFunc, vector<GenericValue>());
     printf("#[LLVM IR EXEC] END\n");
-    printf("%s\n", ee->getErrorMessage().c_str());
+    //printf("%s\n", ee->getErrorMessage().c_str());
     
     printf("CPU dump result:\n");
-    CPU::Instance().dump();
+    CPU::Instance().dump(stdout);
 }
 
 #ifdef LLVM_IR_SIMPLEST_PROGRAMM
-void ASM2LLVMBuilder::LLVMGenSimplestProgram(const C_string sourceFile)
+
+void Translator::LLVMGenSimplestProgram(const C_string sourceFile)
 {
-    module = new Module("Main_module", context);
-    module->setSourceFileName(sourceFile);
-    module->getOrInsertGlobal("ptr_reg", Type::getInt32PtrTy(context));
+    
+    m_module = new Module("Main_module", m_context);
+    m_module->setSourceFileName(sourceFile);
 
-    FunctionType* funcType = FunctionType::get(builder.getInt64Ty(), false);
-    mainFunc = Function::Create(funcType, llvm::Function::ExternalLinkage, "main_func", module);
-    BasicBlock* entryBB = BasicBlock::Create(context, "entry", mainFunc);
-    builder.SetInsertPoint(entryBB);
+    const ui32 REG_FILE_SIZE = 4;
+    i32 CPU_REG_FILE[REG_FILE_SIZE] = { 4,7,1,2 };
 
-    Value* tmp = builder.CreateConstGEP1_32(
-        Type::getInt32PtrTy(context),
-        module->getNamedGlobal("ptr_reg"),
-        0,
-        "addr"
+    IntegerType* t_64 = m_builder.getInt64Ty();
+    IntegerType* t_32 = m_builder.getInt32Ty();
+    PointerType* t_64_ptr = PointerType::get(t_64, 0);
+    PointerType* t_32_ptr = PointerType::get(t_32, 0);
+
+    ArrayType* regFileType = ArrayType::get(t_32, REG_FILE_SIZE);
+    m_module->getOrInsertGlobal("regFile", regFileType);
+    GlobalVariable* regFile = m_module->getNamedGlobal("regFile");
+
+    m_module->getOrInsertGlobal("ptr_reg", Type::getInt32Ty(m_context));
+    GlobalVariable* ptr_reg_ = m_module->getNamedGlobal("ptr_reg");
+
+   
+    FunctionType* funcType = FunctionType::get(m_builder.getInt64Ty(), false);
+    m_mainFunc = Function::Create(funcType, llvm::Function::ExternalLinkage, "main_func", m_module);
+    BasicBlock* entryBB = BasicBlock::Create(m_context, "entry", m_mainFunc);
+    m_builder.SetInsertPoint(entryBB);
+
+    Value* ptr_to_data = m_builder.CreateConstGEP1_32(
+        ptr_reg_,
+        1
     );
-    builder.CreateRet(tmp);
 
+    m_builder.CreateStore(m_builder.getInt32(0xAABBCCDD), ptr_to_data);
+    m_builder.CreateRet(m_builder.CreatePtrToInt(ptr_to_data, m_builder.getInt64Ty()));
+
+    
+    string s;
+    raw_string_ostream os(s);
+    m_module->print(os, nullptr);
+    os.flush();
+    printf("#[LLVM IR]:\n");
+    printf("%s\n", s.c_str());
+    printf("#[LLVM IR] END\n\n\n");
+    system("pause");
 
 
     InitializeNativeTarget();
     LLVMInitializeNativeAsmPrinter();
-    LLVMInitializeNativeAsmParser();
-    LLVMLinkInMCJIT();
 
     std::string err_str;
-    ExecutionEngine* ee = EngineBuilder(std::unique_ptr<Module>(module))
-        .setEngineKind(EngineKind::JIT)
+    ExecutionEngine* ee = EngineBuilder(std::unique_ptr<Module>(m_module))
         .setErrorStr(&err_str)
         .create();
     if (!ee)
@@ -144,24 +182,26 @@ void ASM2LLVMBuilder::LLVMGenSimplestProgram(const C_string sourceFile)
         return;
     }
     ee->InstallLazyFunctionCreator(lazyFunctionCreator);
-
-
-
-    ui64 adrToRegTable = reinterpret_cast<ui64>(&CPU::myCPU.Register);
-    ee->addGlobalMapping("_ptr_reg", adrToRegTable);
+    ee->addGlobalMapping(regFile, CPU_REG_FILE);
+    ee->addGlobalMapping(ptr_reg_, CPU_REG_FILE);
     ee->finalizeObject();
 
 
+    for (ui8 i = 0; i < REG_FILE_SIZE; i++)
+        printf("reg[%d]:%d \t", i, CPU_REG_FILE[i]);
+    printf("\n");
+
     std::cout << "#[LLVM IR EXEC]:\n";
-    GenericValue result = ee->runFunction(mainFunc, vector<GenericValue>());
+    GenericValue result = ee->runFunction(m_mainFunc, vector<GenericValue>());
     std::cout << "#[LLVM IR EXEC] END\n";
-    std::cout << ee->getErrorMessage() << std::endl;
 
     ui64 r = *result.IntVal.getRawData();
-    printf("   Returned: %lX\n", r);
-    printf(" &Registers: %lX\n", adrToRegTable);
+    printf("     Returned: 0x%lX\n", r);
+    printf("&Registers[0]: 0x%lX\n", &CPU_REG_FILE[0]);
 
-    printf("Result:\n");
-    CPU::Instance().dump();
+    for (ui8 i = 0; i < REG_FILE_SIZE; i++)
+        printf("reg[%d]:%d \t", i, CPU_REG_FILE[i]);
+    printf("\n");
+
 }
 #endif

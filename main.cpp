@@ -61,7 +61,6 @@ int initOutStream(char* outputFileName, FILE** outStreamPtr, char* mode,InputPar
 }
 
 
-
 int main(int argc, char** argv)
 {
     InitLLVM X(argc, argv);
@@ -69,17 +68,21 @@ int main(int argc, char** argv)
     initCallStack();
     $
     parseConsoleArguments(argc, argv, &inputParams);
-    Logger::Instance().init(inputParams.noLogFileFlag ? NULL : inputParams.logFilename);
-    //loggerInit(inputParams.noLogFileFlag ? NULL : inputParams.logFilename, "w");
-    
-    inputParams.memorySize = 128;
+    inputParams.memorySize = inputParams.memorySize > 128 ?
+        inputParams.memorySize :
+        128;
+
+    Logger::Instance().init(inputParams.noLogFileFlag ? nullptr : inputParams.logFilename);
     CPU::Instance().init(inputParams);
 
-    ASM2LLVMBuilder& builder = ASM2LLVMBuilder::Instance();
-    builder.ASM2LLVM(inputParams.inputFilename, inputParams.outputFilename);
+    Translator& translator = Translator::Instance();
+    TranslatorError error = translator.ASM2LLVM(
+        inputParams.inputFilename,
+        inputParams.outputFilename
+    );
 
-    Logger::Instance().~Logger();
-    //loggerDestr();
+    if (inputParams.runJIT && error == TR_OK)
+        translator.runJIT();
 
     system("pause");
     $$ return 0;

@@ -17,6 +17,7 @@ struct InputParams
     bool noLogFileFlag = 0;
     bool useGraphMode = 0;
     bool useStepByStepMode = 0;
+    bool runJIT = 0;
 };
 
 

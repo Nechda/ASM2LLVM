@@ -11,13 +11,13 @@ struct Params
 };
 
 /*
-\brief   ‘ункци¤ рекурсивно заполн¤ет структуру nComands
-\delait  ‘ункци¤ рекурсивно заполн¤ет структуру vector<pair<ui32, i32>> nComands
-         ѕервый аргумент пары -- номер команды в базовом блоке
-         ¬торой аргумент пары -- номер функции в которой располагаетс¤ базовый блок
-\note    ‘ункции нумеруютс¤ с единицы, причем если номер оказалс¤ отрицательным, то
-         это значит, что данный блок ¤вл¤етс¤ самым первым в функции (именно этому блоку
-         передаетс¤ управление после вызова call)
+\brief   функция рекурсивно заполн¤ет структуру nComands
+\delait  функция рекурсивно заполн¤ет структуру vector<pair<ui32, i32>> nComands
+         первый аргумент пары -- номер команды в базовом блоке
+         второй аргумент пары -- номер функции в которой располагаетс¤ базовый блок
+\note    функции нумеруютс¤ с единицы, причем если номер оказался отрицательным, то
+         это значит, что данный блок является самым первым в функции (именно этому блоку
+         передается управление после вызова call)
 */
 void parseFunctions(Params params, ui32 pos, bool isCall, ui32 currentFunctionIndex)
 {
@@ -32,11 +32,13 @@ void parseFunctions(Params params, ui32 pos, bool isCall, ui32 currentFunctionIn
         cmd = LAST_BB_CMD(i);
         if (!params.nComands[i].second)
         {
-            params.nComands[i].second = isCall && i == pos ? -currentFunctionIndex : currentFunctionIndex; //фиксируем наличие первого блока в функции
+            params.nComands[i].second = isCall && i == pos ?
+                -currentFunctionIndex : //фиксируем наличие первого блока в функции
+                currentFunctionIndex; 
             isCall = 0;
             if (cmd.code.bits.opCode == Assembler::CMD_CALL)
                 isCall = 1;
-            if (isBrachComand(cmd.code.bits.opCode))
+            if (isBranchCommand(cmd.code.bits.opCode))
                 parseFunctions(params, cmd.operand[0].ivalue, isCall, currentFunctionIndex);
         }
         if (cmd.code.bits.opCode == Assembler::CMD_RET)
@@ -44,7 +46,7 @@ void parseFunctions(Params params, ui32 pos, bool isCall, ui32 currentFunctionIn
     }
 }
 
-TranslatorError ASM2LLVMBuilder::genBBListStage()
+TranslatorError Translator::genBBStructureStage()
 {
     ui32 currentPtr = 0;
 
@@ -54,13 +56,13 @@ TranslatorError ASM2LLVMBuilder::genBBListStage()
     ui16 BIT_MASK = 1 << 6;
     bool wasPrevJmp = 0;
     bool isBrchOp = 0;
-    for (auto& cmd : commandList)
+    for (auto& cmd : m_commandList)
     {
-        isBrchOp = isBrachComand(cmd.code.bits.opCode);
+        isBrchOp = isBranchCommand(cmd.code.bits.opCode);
         
         //помечаем команду, на которую ссылаютс¤
         if (isBrchOp)
-            commandList[cmd.operand[0].ivalue].code.marchCode |= BIT_MASK;
+            m_commandList[cmd.operand[0].ivalue].code.marchCode |= BIT_MASK;
         //и следующую команду
         if (wasPrevJmp)
             cmd.code.marchCode |= BIT_MASK;
@@ -77,16 +79,16 @@ TranslatorError ASM2LLVMBuilder::genBBListStage()
     //           V    V
     vector<pair<ui32,i32>> nComands;
     nComands.push_back(pair<ui32,i32>(0,0));
-    for (ui32 i = 0; i < commandList.size(); i++)
+    for (ui32 i = 0; i < m_commandList.size(); i++)
     {
-        if (commandList[i].code.marchCode & BIT_MASK)
+        if (m_commandList[i].code.marchCode & BIT_MASK)
             nComands.push_back(pair<ui32, ui32>(i, 0)); //в начале все базовые блоки принадлежат "нулевой" функции
-        commandList[i].code.marchCode &= ~BIT_MASK;
+        m_commandList[i].code.marchCode &= ~BIT_MASK;
     }
-    nComands.push_back(pair<ui32, ui32>(commandList.size(),1));
+    nComands.push_back(pair<ui32, ui32>(m_commandList.size(),1));
 
 
-    //займемс¤ генерацией наборов базовых блоков дл¤ каждой функции
+    //займемся генерацией наборов базовых блоков дл¤ каждой функции
     unordered_map<ui32, ui32> mapCmdToBB;
     ui32 nFunctions = 0;
     for (ui32 i = 0; i < nComands.size(); i++)
@@ -94,24 +96,24 @@ TranslatorError ASM2LLVMBuilder::genBBListStage()
 
     //пересчитаем операнды branch команд в номера базовых блоков,
     //на которые данные команды ссылаютс¤
-    for (auto& cmd : commandList)
-        if (isBrachComand(cmd.code.bits.opCode))
+    for (auto& cmd : m_commandList)
+        if (isBranchCommand(cmd.code.bits.opCode))
             cmd.operand[0].ivalue = mapCmdToBB[cmd.operand[0].ivalue];
 
     //запускаем поиск поиск функци
-    parseFunctions({nComands, commandList, nFunctions}, 0, 1, 1);
-    printf("Found functions: %d\n", nFunctions);
-    //теперь гереним таблицу функций vector<Function*,ui32> funcArray
+    parseFunctions({nComands, m_commandList, nFunctions}, 0, 1, 1);
+    //printf("Found functions: %d\n", nFunctions);
+    //теперь гереним таблицу функций vector<Function*,ui32> m_funcArray
     //                                         ^       ^
     //                                         |       |
     //                            llvm ir функци¤   номер базового блока, с которого начинаетс¤ функци¤
-    funcArray.reserve(nFunctions);
-    funcArray.resize(nFunctions);
+    m_funcArray.reserve(nFunctions);
+    m_funcArray.resize(nFunctions);
     for (ui32 i = 0; i < nComands.size(); i++)
     {
         if (nComands[i].second < 0)
         {
-            funcArray[-nComands[i].second - 1].second = mapCmdToBB[nComands[i].first];
+            m_funcArray[-nComands[i].second - 1].second = mapCmdToBB[nComands[i].first];
             nComands[i].second = -nComands[i].second - 1;
         }
         else
@@ -121,11 +123,11 @@ TranslatorError ASM2LLVMBuilder::genBBListStage()
     }
 
     //генерим массив базовых блоков
-    bbArray.reserve(nComands.size());
-    bbArray.resize(nComands.size());
+    m_bbArray.reserve(nComands.size());
+    m_bbArray.resize(nComands.size());
     for (ui32 i = 0; i < nComands.size() - 1; i++)
-        bbArray[i] = { nullptr, nComands[i].first, nComands[i + 1].first - 1, nComands[i].second };
-    bbArray.back() = {}; //завершающий базовый блок, в котором нет ни одной команды
+        m_bbArray[i] = { nullptr, nComands[i].first, nComands[i + 1].first - 1, nComands[i].second };
+    m_bbArray.back() = {}; //завершающий базовый блок, в котором нет ни одной команды
 
     return TR_OK;
 }

@@ -105,10 +105,10 @@ class Translator
         AsmError parseBranches(const Command& cmd, bool& isEndBBCmd);
 
         
-        template<typename Rx_, typename ... Args>
-        using pMethod = Rx_ (IRBuilder<>::*)(Args ...);
-        template<typename Rx_, typename ... Args>
-        Value* createOnStack(pMethod<Rx_, Args ...> exec_func, Args ... args)
+        template<typename Ret, typename ... Args>
+        using pMethod = Ret (IRBuilder<>::*)(Args ...);
+        template<typename Ret, typename ... Args>
+        Value* createOnStack(pMethod<Ret, Args ...> exec_func, Args ... args)
         {
             Value* res = (m_builder.*exec_func)(args ...);
             ringBufValue.push_back(res);
@@ -118,14 +118,12 @@ class Translator
         #ifdef LLVM_IR_SIMPLEST_PROGRAMM
             void LLVMGenSimplestProgram(const C_string sourceFile);
         #endif
-
 };
 
 
 inline bool isBranchCommand(const ui8 cmdOpCode)
 {
-    return Assembler::CMD_JE <= cmdOpCode
-        && cmdOpCode <= Assembler::CMD_JBE
+    return Assembler::CMD_JE <= cmdOpCode && cmdOpCode <= Assembler::CMD_JBE
         || cmdOpCode == Assembler::CMD_JMP
         || cmdOpCode == Assembler::CMD_CALL;
 }

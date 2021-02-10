@@ -10,6 +10,18 @@ static Value* operand[2] = { nullptr, nullptr };
 static Value* operand_ptr[2] = { nullptr, nullptr };
 static circular_buffer<Value*> ringBufValue = circular_buffer<Value*>(RING_BUFFER_CAPACITY);
 
+Value* getAndPop()
+{
+    if (ringBufValue.empty())
+    {
+        logger.push("Error", "{Code generation}: trying pop value* from empty buffer");
+        return nullptr;
+    }
+    Value* res = ringBufValue.back();
+    ringBufValue.pop_back();
+    return res;
+}
+
 
 TranslatorError Translator::codeGenerationStage()
 {
@@ -21,7 +33,7 @@ TranslatorError Translator::codeGenerationStage()
     for (ui32 i = 0; i < m_bbArray.size() - 1 && !isErrorOccur; i++)
     {
         BlockInfo& bbInfo = m_bbArray[i];
-        // из первых двух команд базового блока entry получаем Value* m_ptr_reg_table & m_ptr_memory
+        //из первых двух команд базового блока entry получаем Value* m_ptr_reg_table & m_ptr_memory
         BasicBlock& bbEntry = m_funcArray[bbInfo.funcIndex].first->getEntryBlock();
         auto its = bbEntry.begin();
         m_ptr_reg_table = &(*its);
@@ -60,50 +72,47 @@ TranslatorError Translator::codeGenerationStage()
 }
 
 
-#define CODE_GENERATE_MACRO
-#include "CodegenMacro.h"
-
 #define IRFuncPtr(f) &IRBuilder<>::Create##f
 
 /*
     \brief Макросы, генерирующие команды ir, сгенерированная команда помещается в стек
 */
-
 #define c_GEP(ptr, index)          createOnStack<Value*, Value*, Value*  , const Twine&>(IRFuncPtr(GEP)         , ptr, index, "")
 #define c_ConstGEP1_32(ptr, index) createOnStack<Value*, Value*, unsigned, const Twine&>(IRFuncPtr(ConstGEP1_32), ptr, index, "")
+#define c_CastPtrInt32(ptr)        createOnStack<Value*, Value*, Type*, const Twine&>   (IRFuncPtr(PointerCast) , ptr, Type::getInt32PtrTy(m_context), "")
+#define c_CastPtrFlt32(ptr)        createOnStack<Value*, Value*, Type*, const Twine&>   (IRFuncPtr(PointerCast) , ptr, Type::getFloatPtrTy(m_context), "")
 
 #define c_Load(ptr)         createOnStack<LoadInst* , Value*, const Twine&>(IRFuncPtr(Load ), ptr , ""    )
 #define c_Store(data, ptr)  createOnStack<StoreInst*,Value*, Value* , bool>(IRFuncPtr(Store), data, ptr, 0); ringBufValue.pop_back()
 
-#define c_FAdd(op1, op2)    createOnStack<Value*, Value*, Value*  , const Twine&,MDNode*>(IRFuncPtr(FAdd), op1, op2, "", nullptr)
-#define c_FSub(op1, op2)    createOnStack<Value*, Value*, Value*  , const Twine&,MDNode*>(IRFuncPtr(FSub), op1, op2, "", nullptr)
-#define c_FMul(op1, op2)    createOnStack<Value*, Value*, Value*  , const Twine&,MDNode*>(IRFuncPtr(FMul), op1, op2, "", nullptr)
-#define c_FDiv(op1, op2)    createOnStack<Value*, Value*, Value*  , const Twine&,MDNode*>(IRFuncPtr(FDiv), op1, op2, "", nullptr)
+#define c_FAdd(op1, op2)    createOnStack<Value*, Value*, Value*  , const Twine&, MDNode*>(IRFuncPtr(FAdd), op1, op2, "", nullptr)
+#define c_FSub(op1, op2)    createOnStack<Value*, Value*, Value*  , const Twine&, MDNode*>(IRFuncPtr(FSub), op1, op2, "", nullptr)
+#define c_FMul(op1, op2)    createOnStack<Value*, Value*, Value*  , const Twine&, MDNode*>(IRFuncPtr(FMul), op1, op2, "", nullptr)
+#define c_FDiv(op1, op2)    createOnStack<Value*, Value*, Value*  , const Twine&, MDNode*>(IRFuncPtr(FDiv), op1, op2, "", nullptr)
 
-#define c_Add(op1, op2)     createOnStack<Value*, Value*, Value*  , const Twine&,bool,bool>(IRFuncPtr(Add), op1, op2, "", 0, 0)
-#define c_Sub(op1, op2)     createOnStack<Value*, Value*, Value*  , const Twine&,bool,bool>(IRFuncPtr(Sub), op1, op2, "", 0, 0)
-#define c_Mul(op1, op2)     createOnStack<Value*, Value*, Value*  , const Twine&,bool,bool>(IRFuncPtr(Mul), op1, op2, "", 0, 0)
+#define c_Add(op1, op2)     createOnStack<Value*, Value*, Value*  , const Twine&, bool, bool>(IRFuncPtr(Add), op1, op2, "", 0, 0)
+#define c_Sub(op1, op2)     createOnStack<Value*, Value*, Value*  , const Twine&, bool, bool>(IRFuncPtr(Sub), op1, op2, "", 0, 0)
+#define c_Mul(op1, op2)     createOnStack<Value*, Value*, Value*  , const Twine&, bool, bool>(IRFuncPtr(Mul), op1, op2, "", 0, 0)
 #define c_Div(op1, op2)     c_FDiv(op1, op2)
-
 
 #define c_Not(op1)          createOnStack<Value*, Value*, const Twine&, MDNode*     >(IRFuncPtr(Not)   , op1, "")
 #define c_And(op1, op2)     createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(And)   , op1, op2, "")
-#define c_Or (op1, op2)     createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(Or)    , op1, op2, "")
+#define c_Or(op1, op2)      createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(Or)    , op1, op2, "")
 #define c_And_i64(op1,op2)  createOnStack<Value*, Value*, uint64_t    , const Twine&>(IRFuncPtr(And)   , op1, op2, "")
 #define c_Or_i64(op1,op2)   createOnStack<Value*, Value*, uint64_t    , const Twine&>(IRFuncPtr(Or)    , op1, op2, "")
 #define c_Cast_i1(op1)      createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(ICmpNE), op1, m_builder.getInt32(0), "")
-
+#define c_Not_i1(op1)       createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(ICmpEQ), op1, m_builder.getInt32(0), "")
 
 /*
     \brief Макросы, генерирующие команды ir, аргументы команд берутся из стека
 */
-#define s_CastPtrInt32() DECLARE_FUNC_WITH_1_PARAMS_STK_1(PointerCast, Type)(Type::getInt32PtrTy(m_context))
-#define s_CastPtrFlt32() DECLARE_FUNC_WITH_1_PARAMS_STK_1(PointerCast, Type)(Type::getFloatPtrTy(m_context))
-#define s_Load()         DECLARE_FUNC_WITH_1_PARAMS_STK(Load)()
-#define s_And()          DECLARE_FUNC_WITH_2_UNION_PARAMS_STK(And)()
-#define s_Or()           DECLARE_FUNC_WITH_2_UNION_PARAMS_STK(Or)()
-#define s_Not()          DECLARE_FUNC_WITH_1_PARAMS_STK_1(ICmpEQ, Value)(m_builder.getInt32(0))
-#define s_Cast_i1()      DECLARE_FUNC_WITH_1_PARAMS_STK_1(ICmpNE, Value)(m_builder.getInt32(0))
+#define s_CastPtrInt32() c_CastPtrInt32(getAndPop())
+#define s_CastPtrFlt32() c_CastPtrFlt32(getAndPop())
+#define s_Load()         c_Load(getAndPop())
+#define s_And()          c_And(getAndPop(),getAndPop())
+#define s_Or()           c_Or(getAndPop(),getAndPop())
+#define s_Not()          c_Not_i1(getAndPop())
+#define s_Cast_i1()      c_Cast_i1(getAndPop())
 
 AsmError Translator::parseExternalFunctions(const Command& cmd)
 {
@@ -188,6 +197,7 @@ AsmError Translator::parseOperands(const Command& cmd)
             break;
         }
     }
+    return ASM_OK;
 }
 
 AsmError Translator::parseGeneral(const Command& cmd, bool& isEndBBCmd)
@@ -262,7 +272,25 @@ AsmError Translator::parseGeneral(const Command& cmd, bool& isEndBBCmd)
         isEndBBCmd |= 1;
         m_builder.CreateRetVoid();
         break;
+    case CMD_AND:
+        c_Cast_i1(operand[0]);
+        c_Cast_i1(operand[1]);
+        s_And();
+        c_Store(ringBufValue.back(), operand_ptr[0]);
+        break;
+    case CMD_OR:
+        c_Cast_i1(operand[0]);
+        c_Cast_i1(operand[1]);
+        s_Or();
+        c_Store(ringBufValue.back(), operand_ptr[0]);
+        break;
     default:
+        logger.push("Error",
+            "{Parsing asm commands}: The command doesn't support. mCode: 0x%X",
+            cmd.code.marchCode & 0xFFFF
+        );
+        m_disasembler.disasmCommand(cmd, logger.getStream());
+        return ASM_ERROR_INVALID_OPERAND_SYNTAX;
         break;
     }
     return ASM_OK;
@@ -325,22 +353,33 @@ AsmError Translator::parseBranches(const Command& cmd, bool& isEndBBCmd)
         s_Cast_i1();
         break;
     default:
+        logger.push("Error",
+            "{Parsing asm commands}: The command doesn't support. mCode: 0x%X",
+            cmd.code.marchCode & 0xFFFF
+        );
+        m_disasembler.disasmCommand(cmd, logger.getStream());
+        return ASM_ERROR_INVALID_OPERAND_SYNTAX;
         break;
     }
     m_builder.CreateCondBr(ringBufValue.back(), m_bbArray[cmd.operand[0].ivalue].bb, m_bbArray[m_currBBIndex + 1].bb);
+    return ASM_OK;
 }
-
 
 AsmError Translator::LLVMPareseCommand(const Command& cmd, bool& isBrhCommand, const BlockInfo& blockInfo)
 {
-    if (ASM_OK == parseExternalFunctions(cmd))
-        return ASM_OK;
-    parseOperands(cmd);
+    AsmError errorCode = ASM_OK;
+
+    errorCode = parseExternalFunctions(cmd);
+    if (ASM_OK == errorCode) return ASM_OK;
+
+    errorCode = parseOperands(cmd);
+    if (ASM_OK != errorCode) return errorCode;
+
     if(!isBranchCommand(cmd.code.bits.opCode))
-        parseGeneral(cmd, isBrhCommand);
+        errorCode = parseGeneral(cmd, isBrhCommand);
     else
-        parseBranches(cmd, isBrhCommand);
-    return ASM_OK;
+        errorCode = parseBranches(cmd, isBrhCommand);
+    return errorCode;
 }
 
 #undef IRFuncPtr

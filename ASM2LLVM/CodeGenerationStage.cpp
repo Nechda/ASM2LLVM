@@ -365,7 +365,7 @@ AsmError Translator::parseBranches(const Command& cmd, bool& isEndBBCmd)
     return ASM_OK;
 }
 
-AsmError Translator::LLVMPareseCommand(const Command& cmd, bool& isBrhCommand, const BlockInfo& blockInfo)
+AsmError Translator::LLVMPareseCommand(const Command& cmd, bool& isEndBBCmd, const BlockInfo& blockInfo)
 {
     AsmError errorCode = ASM_OK;
 
@@ -376,9 +376,9 @@ AsmError Translator::LLVMPareseCommand(const Command& cmd, bool& isBrhCommand, c
     if (ASM_OK != errorCode) return errorCode;
 
     if(!isBranchCommand(cmd.code.bits.opCode))
-        errorCode = parseGeneral(cmd, isBrhCommand);
+        errorCode = parseGeneral(cmd, isEndBBCmd);
     else
-        errorCode = parseBranches(cmd, isBrhCommand);
+        errorCode = parseBranches(cmd, isEndBBCmd);
     return errorCode;
 }
 

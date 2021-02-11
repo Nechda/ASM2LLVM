@@ -1,7 +1,7 @@
 # ASM2LLVM
 This directory contain source code for binary translator from [custom cpu architecture](https://github.com/Nechda/CPU-emulator) to LLVM IR.
 ## Requerements
-This project was built with [llvm](https://github.com/llvm/llvm-project) (ver 10.0.0) and [Boost](https://www.boost.org/) (ver 1.72.0). The language standart is c++14.
+This project was built with [llvm](https://github.com/llvm/llvm-project) (ver 10.0.0). The language standart is c++14.
 ## Command prompt
 After building the project, for example in file "translator", you can use flags such as:
 * **-i &lt;filename&gt;**  

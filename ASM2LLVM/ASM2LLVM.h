@@ -21,22 +21,17 @@
 #include <llvm/Support/TargetSelect.h>
 #include <llvm/IR/LegacyPassManager.h>
 
-#include <boost/circular_buffer.hpp>
-
-
-#include <llvm/IRReader/IRReader.h>
-#include <llvm/Support/SourceMgr.h>
-
+#include "CircularBuffer.h"
 
 
 using std::vector;
 using std::pair;
 using std::string;
-using namespace llvm;
-using boost::circular_buffer;
 using Assembler::Command;
 using Assembler::Disassembler;
 using Assembler::AsmError;
+using namespace llvm;
+
 
 extern const ui8 COUNT_REGISTERS;
 
@@ -51,7 +46,6 @@ enum TranslatorError
 };
 
 //#define LLVM_IR_SIMPLEST_PROGRAMM
-#define LLVM_IR_PRINT_DISASSEMBLER
 
 class Translator
 {

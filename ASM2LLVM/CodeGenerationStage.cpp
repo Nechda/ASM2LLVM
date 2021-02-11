@@ -8,7 +8,7 @@ const ui32 RING_BUFFER_CAPACITY = 8;
 
 static Value* operand[2] = { nullptr, nullptr };
 static Value* operand_ptr[2] = { nullptr, nullptr };
-static circular_buffer<Value*> ringBufValue = circular_buffer<Value*>(RING_BUFFER_CAPACITY);
+static circular_buffer<Value*> ringBufValue(RING_BUFFER_CAPACITY);
 
 Value* getAndPop()
 {

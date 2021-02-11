@@ -388,7 +388,7 @@ DEF(
     DUMP,
     make_code(0,26,0), "", "",
     {
-        CPU::Instance().dump();
+        CPU::Instance().dump(stdout);
         system("pause");
     }
 )
@@ -426,7 +426,7 @@ DEF(
         getOperandsPointer(cmd, &dst, &src);
         isFiniteOperands();
         isInterruptOccur();
-        dst->ivalue = static_cast<float>(dst->fvalue);
+        dst->ivalue = static_cast<ui32>(dst->fvalue);
     }
 )
 

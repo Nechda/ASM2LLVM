@@ -18,6 +18,7 @@ struct InputParams
     bool useGraphMode = 0;
     bool useStepByStepMode = 0;
     bool runJIT = 0;
+    bool wantOptimization = 0;
 };
 
 

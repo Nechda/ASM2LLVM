@@ -2,6 +2,8 @@
 #include "CPU/CPU.h"
 #include <algorithm>
 #include <iostream>
+#include <llvm/Transforms/InstCombine/InstCombine.h>
+#include <llvm/Transforms/Scalar.h>
 
 
 using namespace Assembler;
@@ -31,7 +33,52 @@ TranslatorError Translator::codePrintStage(const C_string outFile)
     return errorCode;
 }
 
-TranslatorError Translator::ASM2LLVM(const C_string inputFile, const C_string outFile)
+
+TranslatorError Translator::verificationStage()
+{
+    bool isErrorOccur = 0;
+    string s;
+    raw_string_ostream os(s);
+    for (ui32 i = 0; i < m_funcArray.size() && !isErrorOccur; i++)
+        isErrorOccur |= verifyFunction(*m_funcArray[i].first, &os);
+    os.flush();
+
+    if (isErrorOccur)
+    {
+        printf("[Error]: {Function verification}: %s\n", s.c_str());
+        logger.push("Error", "{Function verification}: %s", s.c_str());
+        return TR_ERROR_FUNCTON_VERIFICATION;
+    }
+
+    return TR_OK;
+}
+
+TranslatorError Translator::optimizationStage()
+{
+    // create a new pass manager
+    legacy::FunctionPassManager* TheFPM = new legacy::FunctionPassManager(m_module);
+
+    // combine redundant instructions
+    TheFPM->add(createInstructionCombiningPass());
+
+    // deleting unreachable code & merging consecutive blocks
+    TheFPM->add(createCFGSimplificationPass());
+
+    // multiple use lexically identical expressions
+    TheFPM->add(createNewGVNPass());
+
+    //TheFPM->add(createEarlyCSEPass());
+
+    TheFPM->doInitialization();
+
+    for (const auto& it : m_funcArray)
+        TheFPM->run(*it.first);
+
+    delete TheFPM;
+    return TR_OK;
+}
+
+TranslatorError Translator::ASM2LLVM(const C_string inputFile, const C_string outFile, bool doOptimization)
 {
     TranslatorError errorCode = TR_OK;
     #define errorCheck() if(errorCode != TR_OK) return errorCode;
@@ -46,14 +93,26 @@ TranslatorError Translator::ASM2LLVM(const C_string inputFile, const C_string ou
         errorCheck();
 
         //stage 3 allocate memory for BasicBlock* and Function* 
-        LLVMPreparation(inputFile);
+        errorCode = LLVMPreparation(inputFile);
         errorCheck();
 
         //stage 4 generate llvm ir by list of commands for every base block
-        codeGenerationStage();
+        errorCode = codeGenerationStage();
         errorCheck();
 
-        //stage 5 push IR into output file
+        //stage 5 verify IR code
+        errorCode = verificationStage();
+        errorCheck();
+
+
+        //stage 6 do some optimizations
+        if (doOptimization)
+        {
+            errorCode = optimizationStage();
+            errorCheck();
+        }
+
+        //stage 7 push IR into output file
         codePrintStage(outFile);
         errorCheck();
     #else

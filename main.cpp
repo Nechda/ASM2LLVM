@@ -25,7 +25,8 @@ int main(int argc, char** argv)
     Translator& translator = Translator::Instance();
     TranslatorError error = translator.ASM2LLVM(
         inputParams.inputFilename,
-        inputParams.outputFilename
+        inputParams.outputFilename,
+        inputParams.wantOptimization
     );
 
     if (inputParams.runJIT && error == TR_OK)

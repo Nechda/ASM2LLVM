@@ -64,12 +64,21 @@ void Logger::printTime()
 
 void Logger::init(const C_string filename)
 {
-    if (isValid || !filename) return;
-    logFile = std::string(filename);
-    logStream = fopen(filename, "w");
-    isValid = logStream;
-    if(isValid)
-        setvbuf(logStream, NULL, _IONBF, 0);
+    if (isValid) return;
+    if (filename)
+    {
+        logFile = std::string(filename);
+        logStream = fopen(filename, "w");
+        isValid = logStream;
+        if (isValid)
+            setvbuf(logStream, NULL, _IONBF, 0);
+    }
+    else
+    {
+        logFile = "";
+        logStream = stdout;
+        isValid = 1;
+    }
 }
 
 void Logger::push(const C_string tag, const C_string format, ...)
@@ -100,7 +109,7 @@ void Logger::assertion(const C_string expr, const C_string file, const C_string 
 
 Logger::~Logger()
 {
-    if (logStream)
+    if (logStream && logStream != stdout)
         fclose(logStream);
 }
 

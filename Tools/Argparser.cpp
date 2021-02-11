@@ -35,9 +35,14 @@ void parseConsoleArguments(int argc, char** argv, InputParams* ptrInParams)
             argv[i] += 2;
             buf = strtok(argv[i], "=");
 
-            sscanf(strtok(NULL, "="), "%d", &intBuf);
-            if (!strcmp(buf, "memorySize"))
-                ptrInParams->memorySize = intBuf;
+            if (strchr(buf, '='))
+            {
+                sscanf(strtok(NULL, "="), "%d", &intBuf);
+                if (!strcmp(buf, "memorySize"))
+                    ptrInParams->memorySize = intBuf;
+            }
+            if (!strcmp(buf, "makeItBetter"))
+                ptrInParams->wantOptimization = 1;
 
             argv[i] -= 2;
             break;

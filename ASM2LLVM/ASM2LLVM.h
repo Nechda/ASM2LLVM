@@ -19,6 +19,7 @@
 #include <llvm/ExecutionEngine/ExecutionEngine.h>
 #include <llvm/ExecutionEngine/GenericValue.h>
 #include <llvm/Support/TargetSelect.h>
+#include <llvm/IR/LegacyPassManager.h>
 
 #include <boost/circular_buffer.hpp>
 
@@ -45,6 +46,7 @@ enum TranslatorError
     TR_OK,
     TR_ERROR_PARSE_BINARY,
     TR_ERROR_CODE_GENERATION,
+    TR_ERROR_FUNCTON_VERIFICATION,
     TR_ERROR_WRITING_IN_FILE
 };
 
@@ -83,7 +85,11 @@ class Translator
             static Translator theInstance;
             return theInstance;
         }
-        TranslatorError ASM2LLVM(const C_string inputFile, const C_string outFile);
+        TranslatorError ASM2LLVM(
+            const C_string inputFile,
+            const C_string outFile,
+            bool doOptimization = false
+        );
         void runJIT();
     private:
         Translator() :
@@ -96,6 +102,8 @@ class Translator
         TranslatorError genBBStructureStage();
         TranslatorError LLVMPreparation(const C_string sourceFile);
         TranslatorError codeGenerationStage();
+        TranslatorError verificationStage();
+        TranslatorError optimizationStage();
         TranslatorError codePrintStage(const C_string outFile);
 
         AsmError LLVMPareseCommand(const Command& cmd, bool& isBrhCommand, const BlockInfo& blockInfo);

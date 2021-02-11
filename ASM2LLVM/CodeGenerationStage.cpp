@@ -82,6 +82,8 @@ TranslatorError Translator::codeGenerationStage()
 #define c_CastPtrInt32(ptr)        createOnStack<Value*, Value*, Type*, const Twine&>   (IRFuncPtr(PointerCast) , ptr, Type::getInt32PtrTy(m_context), "")
 #define c_CastPtrFlt32(ptr)        createOnStack<Value*, Value*, Type*, const Twine&>   (IRFuncPtr(PointerCast) , ptr, Type::getFloatPtrTy(m_context), "")
 
+#define c_CastI1toI32(op)          createOnStack<Value*, Value*, Type*, bool, const Twine&>(IRFuncPtr(IntCast), op, Type::getInt32Ty(m_context), 1, "") //signed
+
 #define c_Load(ptr)         createOnStack<LoadInst* , Value*, const Twine&>(IRFuncPtr(Load ), ptr , ""    )
 #define c_Store(data, ptr)  createOnStack<StoreInst*,Value*, Value* , bool>(IRFuncPtr(Store), data, ptr, 0); ringBufValue.pop_back()
 
@@ -108,6 +110,7 @@ TranslatorError Translator::codeGenerationStage()
 */
 #define s_CastPtrInt32() c_CastPtrInt32(getAndPop())
 #define s_CastPtrFlt32() c_CastPtrFlt32(getAndPop())
+#define s_CastI1toI32()  c_CastI1toI32(getAndPop())
 #define s_Load()         c_Load(getAndPop())
 #define s_And()          c_And(getAndPop(),getAndPop())
 #define s_Or()           c_Or(getAndPop(),getAndPop())
@@ -118,13 +121,14 @@ AsmError Translator::parseExternalFunctions(const Command& cmd)
 {
     static FunctionType* CallType = FunctionType::get(
         m_builder.getVoidTy(),
-        ArrayRef<Type*>({ m_builder.getInt8PtrTy() }),
+        ArrayRef<Type*>({ m_builder.getInt64Ty()}),
         false
     );
     Value* instr_p = ConstantInt::get(
         m_builder.getInt64Ty(),
         reinterpret_cast<ui64>(&cmd)
     );
+
 
     switch (cmd.code.bits.opCode)
     {
@@ -276,12 +280,14 @@ AsmError Translator::parseGeneral(const Command& cmd, bool& isEndBBCmd)
         c_Cast_i1(operand[0]);
         c_Cast_i1(operand[1]);
         s_And();
+        s_CastI1toI32();
         c_Store(ringBufValue.back(), operand_ptr[0]);
         break;
     case CMD_OR:
         c_Cast_i1(operand[0]);
         c_Cast_i1(operand[1]);
         s_Or();
+        s_CastI1toI32();
         c_Store(ringBufValue.back(), operand_ptr[0]);
         break;
     default:

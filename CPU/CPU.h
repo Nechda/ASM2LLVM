@@ -9,7 +9,7 @@
 
 
 /*
-\brief коды ошибок, возвращаемые процессором
+\brief  оды ошибок, возвращаемые процессором
 */
 enum CPUerror
 {
@@ -31,7 +31,7 @@ public:
         static CPU theInstance;
         return theInstance;
     }
-    void dump();
+    void dump(Stream outStream);
     void status();
     void init(const InputParams inParam);
     CPUerror run(ui8* bytes, ui32 size, ui32 ptrStart);

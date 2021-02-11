@@ -1,6 +1,6 @@
 [ENG](Readme_en.md)
 # ASM2LLVM
-В данном репозитории представлен исходный код бинарного транслятора, target архитектурой которого является проект [CPU-emulator](https://github.com/Nechda/CPU-emulator). Финальным продуктом транслятора является код на LLVM IR.
+В данном репозитории представлен исходный код бинарного транслятора программ под архитектуру [CPU-emulator](https://github.com/Nechda/CPU-emulator) в код на LLVM IR.
 ## Requerements
 В данном проекте используется пакет [llvm](https://github.com/llvm/llvm-project) (ver 10.0.0), а также [Boost](https://www.boost.org/) (ver 1.72.0). Стандарт языка - c++14.
 ## Command prompt

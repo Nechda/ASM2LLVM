@@ -10,10 +10,15 @@ Sets the input file, this flag is required.
 Sets the output file. If this flag is not specified, then IR code prints on the screen.
 * **-l &lt;filename&gt;**  
 Sets the logfile name. If this flag is not specified, then by default logfile is "log.log".
+* **-n**  
+Shuts down logging, all errors prints at the screen.
 * **-r**  
 Run the programm after translation.
 * **--memorySize=&lt;amount&gt;**  
 Sets the virual RAM size in bytes. The minimum value is 128 bytes, and the maximum is 512 kB.
+* **--makeItBetter**  
+Enables LLVM IR code optimization.
+
 
 ## Examples
 There are some basic programms in [examples directory](https://github.com/Nechda/ASM2LLVM/tree/main/examples). Lets consider some examples of running translator in different modes:

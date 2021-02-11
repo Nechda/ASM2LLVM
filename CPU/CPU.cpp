@@ -6,8 +6,6 @@
 #define _USE_MATH_DEFINES
 #include <math.h>
 
-#include <GL\freeglut.h>
-
 #include "Asm/Asm.h"
 #include "CPU/CPU.h"
 #include "Stack/Stack_kernel.h"
@@ -20,6 +18,11 @@ using namespace Assembler;
 
 CPU::CPUStruct CPU::myCPU = {};
 CPU::CPUStruct& myCPU = CPU::myCPU;
+
+#ifdef CPU_GRAPH_MODE
+#include <GL\freeglut.h>
+#endif
+
 
 /*
 \brief Константы, определяющие работу процессора
@@ -187,12 +190,11 @@ CPU::~CPU()
 \brief Функция, производящая дамп процессора, результат закидывается в outStream
 \param [in] outStream указатель на поток вывода
 */
-void CPU::dump()
+void CPU::dump(Stream outStream)
 {
-    FILE* outStream = stdout;
-    Assert_c(outStream);
-    if (!outStream)
-        return;
+    if (outStream ? ferror(outStream) : 1)
+        outStream = stdout;
+
     fprintf(outStream, "CPU{\n");
     fprintf(outStream, "    Registers{\n");
     #define printRegInfo(regName)\
@@ -383,7 +385,7 @@ CPUerror CPU::evaluate()
         if (myCPU.stepByStep)
         {
             Disassembler::Instance().disasmCommand(cmd, stdout);
-            dump();
+            dump(logger.getStream());
             system("pause");
             system("cls");
         }
@@ -393,7 +395,7 @@ CPUerror CPU::evaluate()
         if (indexCalledFunc >= FUNCTION_TABLE_SIZE)
         {
             logger.push("CPU error", "Invalid machine code of command.");
-            dump();
+            dump(logger.getStream());
             return CPU_ERROR_INVALID_COMMAND;
         }
         runFunction[indexCalledFunc](&cmd);
@@ -403,13 +405,13 @@ CPUerror CPU::evaluate()
         {
             logger.push("CPU error", "Catch exception after execution command:");
             Disassembler::Instance().disasmCommand(cmd, logger.getStream());
-            dump();
+            dump(logger.getStream());
             return CPU_ERROR_EXCEPTION;
         }
         if (myCPU.Register.eip >= myCPU.ramSize)
         {
             logger.push("CPU error", "Register epi quite big for RAM.");
-            dump();
+            dump(logger.getStream());
             return CPU_ERROR_EPI_OUT_OF_RANE;
         }
         myCPU.stack.data = &myCPU.RAM[myCPU.Register.ess];

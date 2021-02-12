@@ -1,5 +1,7 @@
 #pragma once
 #include "Types.h"
+#include <stdlib.h>
+#include <iostream>
 
 template<typename T>
 class circular_buffer
@@ -14,11 +16,11 @@ class circular_buffer
         circular_buffer& operator=(const circular_buffer) = delete;
     public:
         circular_buffer(ui32 size) :
-            m_size(size),
+            m_size(size > 2 ? size : 2),
             m_array(nullptr),
-            m_front(0), m_back(0)
+            m_front(0), m_back(1)
         {
-            m_array = new T[size];
+            m_array = new T[m_size];
         }
         ~circular_buffer()
         {   
@@ -38,7 +40,7 @@ class circular_buffer
         }
         void pop_front()
         {
-            if (m_front == m_back)
+            if (empty())
                 return;
             m_front++;
             m_front %= m_size;
@@ -61,7 +63,7 @@ class circular_buffer
         }
         void pop_back()
         {
-            if (m_front == m_back)
+            if (empty())
                 return;
             m_back--;
             m_back %= m_size;
@@ -73,6 +75,18 @@ class circular_buffer
 
         bool empty()
         {
-            return m_front == m_back;
+            return (m_front + 1)%m_size == m_back;
+        }
+
+        void dump()
+        {
+            for (ui32 i = 0; i < m_size; i++)
+            {
+                std::cout << m_array[i];
+                if (i == m_front || i == m_back)
+                    std::cout << (i == m_front ? "(f)" : "(b)");
+                std::cout << " ";
+            }
+            std::cout << std::endl;
         }
 };

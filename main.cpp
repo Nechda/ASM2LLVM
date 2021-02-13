@@ -15,6 +15,12 @@ int main(int argc, char** argv)
     initCallStack();
     $
     parseConsoleArguments(argc, argv, &inputParams);
+    if (!inputParams.inputFilename)
+    {
+        printf("You should use -i flag to set input binary file.\n");
+        system("pause");
+        return 1;
+    }
     inputParams.memorySize = inputParams.memorySize > 128 ?
         inputParams.memorySize :
         128;

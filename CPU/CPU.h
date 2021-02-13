@@ -9,7 +9,7 @@
 
 
 /*
-\brief  оды ошибок, возвращаемые процессором
+\brief  коды ошибок, возвращаемые процессором
 */
 enum CPUerror
 {
@@ -76,25 +76,26 @@ C_string getStringByErrorCode(CPUerror errorCode);
 /*
 \brief номера битов в регистре EFLAGS
 */
-const ui8 FLAG_CF = 0;
-const ui8 FLAG_ZF = 6;
-const ui8 FLAG_SF = 7;
+extern const ui8 FLAG_CF;
+extern const ui8 FLAG_ZF;
+extern const ui8 FLAG_SF;
 
 /*
 \brief номера регистров
 */
-const ui8 EAX_REG_INDEX = 0;
-const ui8 EBX_REG_INDEX = 1;
-const ui8 ECX_REG_INDEX = 2;
-const ui8 EDX_REG_INDEX = 3;
-const ui8 ESI_REG_INDEX = 4;
-const ui8 EDI_REG_INDEX = 5;
-const ui8 ESP_REG_INDEX = 6;
-const ui8 EBP_REG_INDEX = 7;
-const ui8 EPI_REG_INDEX = 8;
-const ui8 EFL_REG_INDEX = 9;
-const ui8 ECS_REG_INDEX = 10;
-const ui8 EDS_REG_INDEX = 11;
-const ui8 ESS_REG_INDEX = 12;
+extern const ui8 EAX_REG_INDEX;
+extern const ui8 EBX_REG_INDEX;
+extern const ui8 ECX_REG_INDEX;
+extern const ui8 EDX_REG_INDEX;
+extern const ui8 ESI_REG_INDEX;
+extern const ui8 EDI_REG_INDEX;
+extern const ui8 ESP_REG_INDEX;
+extern const ui8 EBP_REG_INDEX;
+extern const ui8 EPI_REG_INDEX;
+extern const ui8 EFL_REG_INDEX;
+extern const ui8 ECS_REG_INDEX;
+extern const ui8 EDS_REG_INDEX;
+extern const ui8 ESS_REG_INDEX;
 
-const ui8 BYTES_IN_REGISTER = sizeof(ui32);
+extern const ui8 BYTES_IN_REGISTER;
+extern const ui8 COUNT_REGISTERS;

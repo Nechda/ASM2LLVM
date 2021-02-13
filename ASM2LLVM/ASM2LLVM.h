@@ -23,6 +23,8 @@
 
 #include "CircularBuffer.h"
 
+#include "llvm/ExecutionEngine/JITSymbol.h"
+
 
 using std::vector;
 using std::pair;
@@ -32,8 +34,6 @@ using Assembler::Disassembler;
 using Assembler::AsmError;
 using namespace llvm;
 
-
-extern const ui8 COUNT_REGISTERS;
 
 
 enum TranslatorError
@@ -45,26 +45,36 @@ enum TranslatorError
     TR_ERROR_WRITING_IN_FILE
 };
 
+//This define is for creating simple LLVM IR program and exceuting it
+//Usually uses for debug
 //#define LLVM_IR_SIMPLEST_PROGRAMM
+
+//This define is for printing asm command while parsing is not complete
+//Also uses for debug
+//#define LLVM_PRINT_DISASSEMBLER
 
 class Translator
 {
     private:
-        vector<Command> m_commandList;
+        vector<Command> m_commandList; //list of disassembled commands
 
         struct BlockInfo
         {
             BasicBlock* bb = nullptr;
-            ui32 sLine = 0; //first line in asm file for the block
-            ui32 eLine = 0; //last line in asm file for the block
-            i32 funcIndex = 0;
+            ui32 sLine = 0;    //first line in asm file for the block
+            ui32 eLine = 0;    //last line in asm file for the block
+            i32 funcIndex = 0; //number of function in LLVM IR
         };
         ui32 m_currBBIndex = 0;
         vector<BlockInfo> m_bbArray;
         vector<pair<Function*,ui32>> m_funcArray;
 
-        Value* m_ptr_reg_table;
-        Value* m_ptr_memory;
+        ArrayType* regTableType;
+        ArrayType* memTableType;
+
+        GlobalVariable* m_reg_table; //variable for access to cpu's registers
+        GlobalVariable* m_memory;    //variable for access to cpu's memory
+
         Function* m_mainFunc;
 
 

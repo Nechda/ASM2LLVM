@@ -11,11 +11,11 @@ struct Params
 };
 
 /*
-\brief   функция рекурсивно заполн¤ет структуру nComands
-\delait  функция рекурсивно заполн¤ет структуру vector<pair<ui32, i32>> nComands
+\brief   функция рекурсивно заполняет структуру nComands
+\delait  функция рекурсивно заполняет структуру vector<pair<ui32, i32>> nComands
          первый аргумент пары -- номер команды в базовом блоке
-         второй аргумент пары -- номер функции в которой располагаетс¤ базовый блок
-\note    функции нумеруютс¤ с единицы, причем если номер оказался отрицательным, то
+         второй аргумент пары -- номер функции в которой располагается базовый блок
+\note    функции нумеруются с единицы, причем если номер оказался отрицательным, то
          это значит, что данный блок является самым первым в функции (именно этому блоку
          передается управление после вызова call)
 */
@@ -50,8 +50,8 @@ TranslatorError Translator::genBBStructureStage()
 {
     ui32 currentPtr = 0;
 
-    //помечаем все команды, которые будут раздел¤ть базовые блоки
-    //измен¤ем зарезервированный бит в команде
+    //помечаем все команды, которые будут разделять базовые блоки
+    //изменяем зарезервированный бит в команде
     //(см структуру машинного кода команды в Asm/Ams.h)
     ui16 BIT_MASK = 1 << 6;
     bool wasPrevJmp = 0;
@@ -60,7 +60,7 @@ TranslatorError Translator::genBBStructureStage()
     {
         isBrchOp = isBranchCommand(cmd.code.bits.opCode);
         
-        //помечаем команду, на которую ссылаютс¤
+        //помечаем команду, на которую ссылаются
         if (isBrchOp)
             m_commandList[cmd.operand[0].ivalue].code.marchCode |= BIT_MASK;
         //и следующую команду
@@ -72,7 +72,7 @@ TranslatorError Translator::genBBStructureStage()
     }
 
 
-    //получаем номера команд, которые раздел¤ют базовые блоки
+    //получаем номера команд, которые разделяют базовые блоки
     //(номер первой команды в базовом блоке)
     //номер команды  номер функции (считаем с 1!!!)
     //           |    |
@@ -88,14 +88,14 @@ TranslatorError Translator::genBBStructureStage()
     nComands.push_back(pair<ui32, ui32>(m_commandList.size(),1));
 
 
-    //займемся генерацией наборов базовых блоков дл¤ каждой функции
+    //займемся генерацией наборов базовых блоков для каждой функции
     unordered_map<ui32, ui32> mapCmdToBB;
     ui32 nFunctions = 0;
     for (ui32 i = 0; i < nComands.size(); i++)
         mapCmdToBB[nComands[i].first] = i;
 
     //пересчитаем операнды branch команд в номера базовых блоков,
-    //на которые данные команды ссылаютс¤
+    //на которые данные команды ссылаются
     for (auto& cmd : m_commandList)
         if (isBranchCommand(cmd.code.bits.opCode))
             cmd.operand[0].ivalue = mapCmdToBB[cmd.operand[0].ivalue];
@@ -106,7 +106,7 @@ TranslatorError Translator::genBBStructureStage()
     //теперь гереним таблицу функций vector<Function*,ui32> m_funcArray
     //                                         ^       ^
     //                                         |       |
-    //                            llvm ir функци¤   номер базового блока, с которого начинаетс¤ функци¤
+    //                            llvm ir функция   номер базового блока, с которого начинается функция
     m_funcArray.reserve(nFunctions);
     m_funcArray.resize(nFunctions);
     for (ui32 i = 0; i < nComands.size(); i++)

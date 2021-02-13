@@ -29,6 +29,10 @@ TranslatorError Translator::codePrintStage(const C_string outFile)
     if(stream == stdout) fprintf(stream,"#[LLVM IR]:\n");
     fprintf(stream,"%s\n", s.c_str());
     if (stream == stdout) fprintf(stream,"#[LLVM IR] END\n\n\n");
+
+    if (stream != stdout)
+        printf("LLVM IR code has wrote in %s file.\n", outFile);
+
     system("pause");
     return errorCode;
 }
@@ -129,7 +133,7 @@ TranslatorError Translator::ASM2LLVM(const C_string inputFile, const C_string ou
 static const string INTERP_FUNC_NAMES[] =
 {
     #define DEF(name, mCode, vStr1, vStr2, code)\
-        std::string("_run_"#name),
+        std::string("run_"#name),
         #include "Extend.h"
     #undef DEF
 };
@@ -162,105 +166,15 @@ void Translator::runJIT()
     }
     ee->InstallLazyFunctionCreator(lazyFunctionCreator);
 
-
-    ui64 adrToRegTable = reinterpret_cast<ui64>(&CPU::myCPU.Register);
-    ee->addGlobalMapping("_ptr_reg", reinterpret_cast<ui64>(&adrToRegTable));
-    ui64 adrToMemory = reinterpret_cast<ui64>(&CPU::myCPU.RAM[0]);
-    ee->addGlobalMapping("_ptr_mem", reinterpret_cast<ui64>(&adrToMemory));
-
+    ee->addGlobalMapping(m_reg_table, &CPU::myCPU.Register.eax);
+    ee->addGlobalMapping(m_memory, &CPU::myCPU.RAM[0]);
     ee->finalizeObject();
 
 
     printf("#[LLVM IR EXEC]:\n");
     GenericValue result = ee->runFunction(m_mainFunc, vector<GenericValue>());
     printf("#[LLVM IR EXEC] END\n");
-    //printf("%s\n", ee->getErrorMessage().c_str());
     
     printf("CPU dump result:\n");
     CPU::Instance().dump(stdout);
 }
-
-#ifdef LLVM_IR_SIMPLEST_PROGRAMM
-
-void Translator::LLVMGenSimplestProgram(const C_string sourceFile)
-{
-    
-    m_module = new Module("Main_module", m_context);
-    m_module->setSourceFileName(sourceFile);
-
-    const ui32 REG_FILE_SIZE = 4;
-    i32 CPU_REG_FILE[REG_FILE_SIZE] = { 4,7,1,2 };
-
-    IntegerType* t_64 = m_builder.getInt64Ty();
-    IntegerType* t_32 = m_builder.getInt32Ty();
-    PointerType* t_64_ptr = PointerType::get(t_64, 0);
-    PointerType* t_32_ptr = PointerType::get(t_32, 0);
-
-    ArrayType* regFileType = ArrayType::get(t_32, REG_FILE_SIZE);
-    m_module->getOrInsertGlobal("regFile", regFileType);
-    GlobalVariable* regFile = m_module->getNamedGlobal("regFile");
-
-    m_module->getOrInsertGlobal("ptr_reg", Type::getInt32Ty(m_context));
-    GlobalVariable* ptr_reg_ = m_module->getNamedGlobal("ptr_reg");
-
-   
-    FunctionType* funcType = FunctionType::get(m_builder.getInt64Ty(), false);
-    m_mainFunc = Function::Create(funcType, llvm::Function::ExternalLinkage, "main_func", m_module);
-    BasicBlock* entryBB = BasicBlock::Create(m_context, "entry", m_mainFunc);
-    m_builder.SetInsertPoint(entryBB);
-
-    Value* ptr_to_data = m_builder.CreateConstGEP1_32(
-        ptr_reg_,
-        1
-    );
-
-    m_builder.CreateStore(m_builder.getInt32(0xAABBCCDD), ptr_to_data);
-    m_builder.CreateRet(m_builder.CreatePtrToInt(ptr_to_data, m_builder.getInt64Ty()));
-
-    
-    string s;
-    raw_string_ostream os(s);
-    m_module->print(os, nullptr);
-    os.flush();
-    printf("#[LLVM IR]:\n");
-    printf("%s\n", s.c_str());
-    printf("#[LLVM IR] END\n\n\n");
-    system("pause");
-
-
-    InitializeNativeTarget();
-    LLVMInitializeNativeAsmPrinter();
-
-    std::string err_str;
-    ExecutionEngine* ee = EngineBuilder(std::unique_ptr<Module>(m_module))
-        .setErrorStr(&err_str)
-        .create();
-    if (!ee)
-    {
-        printf("Could not create ExecutionEngine: %s", err_str.c_str());
-        return;
-    }
-    ee->InstallLazyFunctionCreator(lazyFunctionCreator);
-    ee->addGlobalMapping(regFile, CPU_REG_FILE);
-    ee->addGlobalMapping(ptr_reg_, CPU_REG_FILE);
-    ee->finalizeObject();
-
-
-    for (ui8 i = 0; i < REG_FILE_SIZE; i++)
-        printf("reg[%d]:%d \t", i, CPU_REG_FILE[i]);
-    printf("\n");
-
-    std::cout << "#[LLVM IR EXEC]:\n";
-    GenericValue result = ee->runFunction(m_mainFunc, vector<GenericValue>());
-    std::cout << "#[LLVM IR EXEC] END\n";
-
-    ui64 r = *result.IntVal.getRawData();
-    printf("     Returned: 0x%lX\n", r);
-    printf("&Registers[0]: 0x%lX\n", &CPU_REG_FILE[0]);
-
-    for (ui8 i = 0; i < REG_FILE_SIZE; i++)
-        printf("reg[%d]:%d \t", i, CPU_REG_FILE[i]);
-    printf("\n");
-
-}
-#endif

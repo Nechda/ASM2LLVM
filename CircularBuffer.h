@@ -18,14 +18,14 @@ class circular_buffer
         circular_buffer(ui32 size) :
             m_size(size > 2 ? size : 2),
             m_array(nullptr),
-            m_front(0), m_back(1)
+            m_front(0),
+            m_back(1)
         {
             m_array = new T[m_size];
         }
         ~circular_buffer()
         {   
-            if(m_array)
-                delete[] m_array;
+            delete[] m_array;
         }
         void push_front(T& value)
         {

@@ -10,7 +10,7 @@ static Value* operand[2] = { nullptr, nullptr };
 static Value* operand_ptr[2] = { nullptr, nullptr };
 static circular_buffer<Value*> ringBufValue(RING_BUFFER_CAPACITY);
 
-Value* getAndPop()
+static Value* getAndPop()
 {
     if (ringBufValue.empty())
     {
@@ -32,21 +32,19 @@ TranslatorError Translator::codeGenerationStage()
     bool isLastCmdSeparating = 0;
     for (ui32 i = 0; i < m_bbArray.size() - 1 && !isErrorOccur; i++)
     {
+        //parse commands for each block
         BlockInfo& bbInfo = m_bbArray[i];
-        //из первых двух команд базового блока entry получаем Value* m_ptr_reg_table & m_ptr_memory
-        BasicBlock& bbEntry = m_funcArray[bbInfo.funcIndex].first->getEntryBlock();
-        auto its = bbEntry.begin();
-        m_ptr_reg_table = &(*its);
-        its++;
-        m_ptr_memory = &(*its);
-
-        //парсим команды из блока
         isLastCmdSeparating = 0;
         m_builder.SetInsertPoint(bbInfo.bb);
         m_currBBIndex = i;
         for (ui32 j = bbInfo.sLine; j <= bbInfo.eLine && !isLastCmdSeparating && !isErrorOccur; j++)
+        {
+            #ifdef LLVM_PRINT_DISASSEMBLER
+                m_disasembler.disasmCommand(m_commandList[j], stdout);
+            #endif
             isErrorOccur |=
-            LLVMPareseCommand(m_commandList[j], isLastCmdSeparating, bbInfo) != ASM_OK;
+                LLVMPareseCommand(m_commandList[j], isLastCmdSeparating, bbInfo) != ASM_OK;
+        }
 
         if (
             !isLastCmdSeparating
@@ -67,7 +65,6 @@ TranslatorError Translator::codeGenerationStage()
         else if (!isLastCmdSeparating)
             m_builder.CreateBr(m_bbArray[i+1].bb);
     }
-
     return isErrorOccur ? TR_ERROR_CODE_GENERATION : TR_OK;
 }
 
@@ -75,14 +72,18 @@ TranslatorError Translator::codeGenerationStage()
 #define IRFuncPtr(f) &IRBuilder<>::Create##f
 
 /*
-    \brief Макросы, генерирующие команды ir, сгенерированная команда помещается в стек
+    \brief макросы, генерирующие команды ir, сгенерированная команда помещается в стек
 */
 #define c_GEP(ptr, index)          createOnStack<Value*, Value*, Value*  , const Twine&>(IRFuncPtr(GEP)         , ptr, index, "")
 #define c_ConstGEP1_32(ptr, index) createOnStack<Value*, Value*, unsigned, const Twine&>(IRFuncPtr(ConstGEP1_32), ptr, index, "")
 #define c_CastPtrInt32(ptr)        createOnStack<Value*, Value*, Type*, const Twine&>   (IRFuncPtr(PointerCast) , ptr, Type::getInt32PtrTy(m_context), "")
 #define c_CastPtrFlt32(ptr)        createOnStack<Value*, Value*, Type*, const Twine&>   (IRFuncPtr(PointerCast) , ptr, Type::getFloatPtrTy(m_context), "")
 
-#define c_CastI1toI32(op)          createOnStack<Value*, Value*, Type*, bool, const Twine&>(IRFuncPtr(IntCast), op, Type::getInt32Ty(m_context), 1, "") //signed
+#define c_GEPList(type, ptr, indexList)          createOnStack<Value*, Type*, Value*, ArrayRef<Value*>, const Twine&>(IRFuncPtr(GEP), type, ptr, indexList, "")
+#define c_ConstGEP2_32(type, ptr, idx0, idx1)    createOnStack<Value*,Type*, Value*, unsigned,unsigned, const Twine&>(IRFuncPtr(ConstGEP2_32), type, ptr, idx0, idx1, "")
+
+
+#define c_CastI1toI32(op)   createOnStack<Value*, Value*, Type*, bool, const Twine&>(IRFuncPtr(IntCast), op, Type::getInt32Ty(m_context), 1, "") //signed
 
 #define c_Load(ptr)         createOnStack<LoadInst* , Value*, const Twine&>(IRFuncPtr(Load ), ptr , ""    )
 #define c_Store(data, ptr)  createOnStack<StoreInst*,Value*, Value* , bool>(IRFuncPtr(Store), data, ptr, 0); ringBufValue.pop_back()
@@ -106,7 +107,7 @@ TranslatorError Translator::codeGenerationStage()
 #define c_Not_i1(op1)       createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(ICmpEQ), op1, m_builder.getInt32(0), "")
 
 /*
-    \brief Макросы, генерирующие команды ir, аргументы команд берутся из стека
+    \brief макросы, генерирующие команды ir, аргументы команд берутся из стека
 */
 #define s_CastPtrInt32() c_CastPtrInt32(getAndPop())
 #define s_CastPtrFlt32() c_CastPtrFlt32(getAndPop())
@@ -128,6 +129,7 @@ AsmError Translator::parseExternalFunctions(const Command& cmd)
         m_builder.getInt64Ty(),
         reinterpret_cast<ui64>(&cmd)
     );
+    
 
 
     switch (cmd.code.bits.opCode)
@@ -149,7 +151,6 @@ AsmError Translator::parseExternalFunctions(const Command& cmd)
 
 AsmError Translator::parseOperands(const Command& cmd)
 {
-
     bool isFloatPointOperands = cmd.code.bits.opCode >= FPU_ISA_START_CODE;
     if (cmd.code.bits.nOperands > 2)
     {
@@ -166,7 +167,7 @@ AsmError Translator::parseOperands(const Command& cmd)
         switch (opType)
         {
         case OPERAND_REGISTER:
-            c_ConstGEP1_32(m_ptr_reg_table, cmd.operand[i].ivalue - 1);
+            c_ConstGEP2_32(regTableType, m_reg_table, 0, cmd.operand[i].ivalue - 1);
             if (isFloatPointOperands) s_CastPtrFlt32();
             operand_ptr[i] = ringBufValue.back();
             operand[i] = c_Load(operand_ptr[i]);
@@ -177,16 +178,16 @@ AsmError Translator::parseOperands(const Command& cmd)
                 : ConstantInt::get(m_builder.getInt32Ty(), cmd.operand[i].ivalue);
             break;
         case OPERAND_MEMORY:
-            c_ConstGEP1_32(m_ptr_memory, cmd.operand[i].ivalue);
+            c_ConstGEP2_32(memTableType, m_memory, 0, cmd.operand[i].ivalue);
             if (isFloatPointOperands) s_CastPtrFlt32();
             else s_CastPtrInt32();
             operand_ptr[i] = ringBufValue.back();
             operand[i] = c_Load(operand_ptr[i]);
             break;
         case OPERAND_MEM_BY_REG:
-            c_ConstGEP1_32(m_ptr_reg_table, cmd.operand[i].ivalue - 1);
+            c_ConstGEP2_32(regTableType, m_reg_table, 0, cmd.operand[i].ivalue - 1);
             s_Load();
-            c_GEP(m_ptr_memory, ringBufValue.back());
+            c_GEPList(memTableType, m_memory, ArrayRef<Value*>({ m_builder.getInt32(0),ringBufValue.back()} ) );
             if (isFloatPointOperands) s_CastPtrFlt32();
             else s_CastPtrInt32();
             operand_ptr[i] = ringBufValue.back();
@@ -246,27 +247,27 @@ AsmError Translator::parseGeneral(const Command& cmd, bool& isEndBBCmd)
         c_Store(ringBufValue.back(), operand_ptr[0]);
         break;
     case CMD_PUSH:
-        ESPRegisterPtr = c_ConstGEP1_32(m_ptr_reg_table, ESP_REG_INDEX);
+        ESPRegisterPtr = c_ConstGEP2_32(regTableType, m_reg_table, 0, ESP_REG_INDEX);
         ESPRegister = c_Load(ESPRegisterPtr);
-        c_GEP(m_ptr_memory, ESPRegister);
+        c_GEPList(memTableType, m_memory, ArrayRef<Value*>({ m_builder.getInt32(0), ringBufValue.back() }));
         s_CastPtrInt32();
         c_Store(operand[0], ringBufValue.back());
         c_Add(ESPRegister, m_builder.getInt32(BYTES_IN_REGISTER));
         c_Store(ringBufValue.back(), ESPRegisterPtr);
         break;
     case CMD_POP:
-        ESPRegisterPtr = c_ConstGEP1_32(m_ptr_reg_table, ESP_REG_INDEX);
+        ESPRegisterPtr = c_ConstGEP2_32(regTableType, m_reg_table, 0, ESP_REG_INDEX);
         ESPRegister = c_Load(ESPRegisterPtr);
         c_Sub(ESPRegister, m_builder.getInt32(BYTES_IN_REGISTER));
         c_Store(ringBufValue.back(), ESPRegisterPtr);
-        c_GEP(m_ptr_memory, ringBufValue.back());
+        c_GEPList(memTableType, m_memory, ArrayRef<Value*>({ m_builder.getInt32(0), ringBufValue.back() }));
         s_CastPtrInt32();
         s_Load();
         c_Store(ringBufValue.back(), operand_ptr[0]);
         break;
     case CMD_RET:
         isEndBBCmd |= 1;
-        ESPRegisterPtr = c_ConstGEP1_32(m_ptr_reg_table, ESP_REG_INDEX);
+        ESPRegisterPtr = c_ConstGEP2_32(regTableType, m_reg_table, 0, ESP_REG_INDEX);
         ESPRegister = c_Load(ESPRegisterPtr);
         c_Sub(ESPRegister, m_builder.getInt32(BYTES_IN_REGISTER));
         c_Store(ringBufValue.back(), ESPRegisterPtr);
@@ -310,7 +311,7 @@ AsmError Translator::parseBranches(const Command& cmd, bool& isEndBBCmd)
     {
         ui32 funcIndex = m_bbArray[cmd.operand[0].ivalue].funcIndex;
 
-        ESPRegisterPtr = c_ConstGEP1_32(m_ptr_reg_table, ESP_REG_INDEX);
+        ESPRegisterPtr = c_ConstGEP2_32(regTableType, m_reg_table, 0, ESP_REG_INDEX);
         ESPRegister = c_Load(ESPRegisterPtr);
         c_Add(ESPRegister, m_builder.getInt32(BYTES_IN_REGISTER));
         c_Store(ringBufValue.back(), ESPRegisterPtr);
@@ -326,7 +327,8 @@ AsmError Translator::parseBranches(const Command& cmd, bool& isEndBBCmd)
         return ASM_OK;
     }
 
-    Value* eflRegister = m_builder.CreateLoad(m_builder.CreateConstGEP1_32(m_ptr_reg_table, EFL_REG_INDEX));
+    c_ConstGEP2_32(regTableType, m_reg_table, 0, EFL_REG_INDEX);
+    Value* eflRegister = s_Load();
     switch (cmd.code.bits.opCode)
     {
     case CMD_JE:

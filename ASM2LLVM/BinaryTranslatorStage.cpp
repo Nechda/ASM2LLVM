@@ -34,8 +34,8 @@ static i32 initInStream(const C_string inputFileName, i8** buffer, ui32* readByt
 
 
 /*
-\brief „уть более простой способ пересчета адреса в номер команды
-\note  јсимптотика алгоритма O(N), пам¤ти в худшем случае будет 4*N
+\brief чуть более простой способ пересчета адреса в номер команды
+\note  асимптотика алгоритма O(N), пам¤ти в худшем случае будет 4*N
        N - количество команд в программе
 */
 void recalcAdrToCmdNumber(vector<Command>& commandList)
@@ -43,7 +43,7 @@ void recalcAdrToCmdNumber(vector<Command>& commandList)
     typedef ui32 Addr;
     unordered_map<Addr,ui32> table;
     for (auto& cmd : commandList)
-        if (isBrachComand(cmd.code.bits.opCode))
+        if (isBranchCommand(cmd.code.bits.opCode))
             table[cmd.operand[0].ivalue] = 0;
 
     Addr curAdr = 0;
@@ -55,13 +55,13 @@ void recalcAdrToCmdNumber(vector<Command>& commandList)
     }
 
     for (auto& cmd : commandList)
-        if (isBrachComand(cmd.code.bits.opCode))
+        if (isBranchCommand(cmd.code.bits.opCode))
             cmd.operand[0].ivalue = table[cmd.operand[0].ivalue];
 }
 
 /*
-\brief —амый простой способ пересчитать адреса в номера команд
-\note  јсимптотика алгоритма O(N), в свою очередь доп пам¤ть будет 4*N байт,
+\brief самый простой способ пересчитать адреса в номера команд
+\note  асимптотика алгоритма O(N), в свою очередь доп памать будет 4*N байт,
        N - количество команд в программе
 */
 void stupidRecalculate(vector<Command>& commandList)
@@ -76,7 +76,7 @@ void stupidRecalculate(vector<Command>& commandList)
     }
 
     for (auto& cmd : commandList)
-        if (isBrachComand(cmd.code.bits.opCode))
+        if (isBranchCommand(cmd.code.bits.opCode))
             cmd.operand[0].ivalue = nCommand[cmd.operand[0].ivalue];
 }
 
@@ -87,7 +87,7 @@ TranslatorError Translator::parseBinaryStage(const C_string inputFile)
     ui32 nBytes = 0;
     isErrorOccur |= initInStream(inputFile, &bytes, &nBytes);
     isErrorOccur |= m_disasembler.generateCommandList(m_commandList, bytes, nBytes) != ASM_OK;
-    //теперь займемс¤ пересчетом адресов в номера команд
+    //теперь займемся пересчетом адресов в номера команд
     recalcAdrToCmdNumber(m_commandList);
     if(bytes)
         free(bytes);

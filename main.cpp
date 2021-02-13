@@ -32,6 +32,7 @@ int main(int argc, char** argv)
     TranslatorError error = translator.ASM2LLVM(
         inputParams.inputFilename,
         inputParams.outputFilename,
+        inputParams.memorySize,
         inputParams.wantOptimization
     );
 

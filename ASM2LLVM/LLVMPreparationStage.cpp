@@ -1,17 +1,17 @@
 #include "ASM2LLVM.h"
 #include "CPU/CPU.h"
 
-TranslatorError Translator::LLVMPreparation(const C_string sourceFile)
+TranslatorError Translator::LLVMPreparation(const C_string sourceFile, ui32 memorySize)
 {       
     m_module = new Module("Main_module", m_context);
     m_module->setSourceFileName(sourceFile);
 
     //declaring external global variable,that allows us work with CPU's structure, described in CPU.h
-    regTableType = ArrayType::get(m_builder.getInt32Ty(), COUNT_REGISTERS);
-    memTableType = ArrayType::get(m_builder.getInt8Ty(), 128 /*need to init from comsole*/);
+    m_regTableType = ArrayType::get(m_builder.getInt32Ty(), COUNT_REGISTERS);
+    m_memTableType = ArrayType::get(m_builder.getInt8Ty(), memorySize);
 
-    m_module->getOrInsertGlobal("register", regTableType);
-    m_module->getOrInsertGlobal("memory", memTableType);
+    m_module->getOrInsertGlobal("register", m_regTableType);
+    m_module->getOrInsertGlobal("memory", m_memTableType);
 
     m_reg_table = m_module->getNamedGlobal("register");
     m_memory = m_module->getNamedGlobal("memory");
@@ -34,7 +34,7 @@ TranslatorError Translator::LLVMPreparation(const C_string sourceFile)
     m_builder.CreateCall(m_funcArray[0].first);
     m_builder.CreateRetVoid();
 
-    //create basick bloks
+    //create basic bloks
     for(i32 i = 0; i < m_bbArray.size() - 1; i++)
         m_bbArray[i].bb = BasicBlock::Create(m_context, "BB_" + std::to_string(i), m_funcArray[m_bbArray[i].funcIndex].first);
 

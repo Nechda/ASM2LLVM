@@ -34,12 +34,11 @@ void parseConsoleArguments(int argc, char** argv, InputParams* ptrInParams)
         case '-':
             argv[i] += 2;
             buf = strtok(argv[i], "=");
-
-            if (strchr(buf, '='))
+            if (!strcmp(buf, "memorySize"))
             {
-                sscanf(strtok(NULL, "="), "%d", &intBuf);
-                if (!strcmp(buf, "memorySize"))
-                    ptrInParams->memorySize = intBuf;
+                buf = strtok(NULL, "=");
+                sscanf(buf, "%d", &intBuf);
+                ptrInParams->memorySize = intBuf;
             }
             if (!strcmp(buf, "makeItBetter"))
                 ptrInParams->wantOptimization = 1;

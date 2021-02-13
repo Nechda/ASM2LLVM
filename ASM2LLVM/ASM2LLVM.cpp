@@ -82,7 +82,8 @@ TranslatorError Translator::optimizationStage()
     return TR_OK;
 }
 
-TranslatorError Translator::ASM2LLVM(const C_string inputFile, const C_string outFile, bool doOptimization)
+TranslatorError
+Translator::ASM2LLVM(const C_string inputFile, const C_string outFile, ui32 memorySize, bool doOptimization)
 {
     TranslatorError errorCode = TR_OK;
     #define errorCheck() if(errorCode != TR_OK) return errorCode;
@@ -97,7 +98,7 @@ TranslatorError Translator::ASM2LLVM(const C_string inputFile, const C_string ou
         errorCheck();
 
         //stage 3 allocate memory for BasicBlock* and Function* 
-        errorCode = LLVMPreparation(inputFile);
+        errorCode = LLVMPreparation(inputFile, memorySize);
         errorCheck();
 
         //stage 4 generate llvm ir by list of commands for every base block

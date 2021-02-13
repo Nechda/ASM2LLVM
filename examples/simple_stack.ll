@@ -1,8 +1,8 @@
 ; ModuleID = 'Main_module'
 source_filename = "simple_stack.bin"
 
-@ptr_reg = external global i32*
-@ptr_mem = external global i8*
+@register = external global [13 x i32]
+@memory = external global [128 x i8]
 
 define void @main_func() {
 entry:
@@ -12,55 +12,44 @@ entry:
 
 define void @func_0() {
 entry:
-  %registers_0 = load i32*, i32** @ptr_reg
-  %memory_0 = load i8*, i8** @ptr_mem
   br label %BB_0
 
 BB_0:                                             ; preds = %entry
-  %0 = getelementptr i32, i32* %registers_0, i32 6
-  %1 = load i32, i32* %0
-  %2 = getelementptr i8, i8* %memory_0, i32 %1
-  %3 = bitcast i8* %2 to i32*
-  store i32 1095971635, i32* %3
-  %4 = add i32 %1, 4
-  store i32 %4, i32* %0
-  %5 = getelementptr i32, i32* %registers_0, i32 6
-  %6 = load i32, i32* %5
-  %7 = getelementptr i8, i8* %memory_0, i32 %6
-  %8 = bitcast i8* %7 to i32*
-  store i32 1056964608, i32* %8
-  %9 = add i32 %6, 4
-  store i32 %9, i32* %5
-  %10 = getelementptr i32, i32* %registers_0, i32 0
-  %11 = load i32, i32* %10
-  %12 = getelementptr i32, i32* %registers_0, i32 6
+  %0 = load i32, i32* getelementptr inbounds ([13 x i32], [13 x i32]* @register, i32 0, i32 6)
+  %1 = getelementptr [128 x i8], [128 x i8]* @memory, i32 0, i32 %0
+  %2 = bitcast i8* %1 to i32*
+  store i32 1095971635, i32* %2
+  %3 = add i32 %0, 4
+  store i32 %3, i32* getelementptr inbounds ([13 x i32], [13 x i32]* @register, i32 0, i32 6)
+  %4 = load i32, i32* getelementptr inbounds ([13 x i32], [13 x i32]* @register, i32 0, i32 6)
+  %5 = getelementptr [128 x i8], [128 x i8]* @memory, i32 0, i32 %4
+  %6 = bitcast i8* %5 to i32*
+  store i32 1056964608, i32* %6
+  %7 = add i32 %4, 4
+  store i32 %7, i32* getelementptr inbounds ([13 x i32], [13 x i32]* @register, i32 0, i32 6)
+  %8 = load i32, i32* getelementptr inbounds ([13 x i32], [13 x i32]* @register, i32 0, i32 0)
+  %9 = load i32, i32* getelementptr inbounds ([13 x i32], [13 x i32]* @register, i32 0, i32 6)
+  %10 = sub i32 %9, 4
+  store i32 %10, i32* getelementptr inbounds ([13 x i32], [13 x i32]* @register, i32 0, i32 6)
+  %11 = getelementptr [128 x i8], [128 x i8]* @memory, i32 0, i32 %10
+  %12 = bitcast i8* %11 to i32*
   %13 = load i32, i32* %12
-  %14 = sub i32 %13, 4
-  store i32 %14, i32* %12
-  %15 = getelementptr i8, i8* %memory_0, i32 %14
-  %16 = bitcast i8* %15 to i32*
-  %17 = load i32, i32* %16
-  store i32 %17, i32* %10
-  %18 = getelementptr i32, i32* %registers_0, i32 1
+  store i32 %13, i32* getelementptr inbounds ([13 x i32], [13 x i32]* @register, i32 0, i32 0)
+  %14 = load i32, i32* getelementptr inbounds ([13 x i32], [13 x i32]* @register, i32 0, i32 1)
+  %15 = load i32, i32* getelementptr inbounds ([13 x i32], [13 x i32]* @register, i32 0, i32 6)
+  %16 = sub i32 %15, 4
+  store i32 %16, i32* getelementptr inbounds ([13 x i32], [13 x i32]* @register, i32 0, i32 6)
+  %17 = getelementptr [128 x i8], [128 x i8]* @memory, i32 0, i32 %16
+  %18 = bitcast i8* %17 to i32*
   %19 = load i32, i32* %18
-  %20 = getelementptr i32, i32* %registers_0, i32 6
-  %21 = load i32, i32* %20
-  %22 = sub i32 %21, 4
-  store i32 %22, i32* %20
-  %23 = getelementptr i8, i8* %memory_0, i32 %22
-  %24 = bitcast i8* %23 to i32*
-  %25 = load i32, i32* %24
-  store i32 %25, i32* %18
-  %26 = getelementptr i32, i32* %registers_0, i32 0
-  %27 = bitcast i32* %26 to float*
-  %28 = load float, float* %27
-  %29 = getelementptr i32, i32* %registers_0, i32 1
-  %30 = bitcast i32* %29 to float*
-  %31 = load float, float* %30
-  %32 = fmul float %28, %31
-  store float %32, float* %27
-  call void @run_OUT(i64 13133992)
+  store i32 %19, i32* getelementptr inbounds ([13 x i32], [13 x i32]* @register, i32 0, i32 1)
+  %20 = load float, float* bitcast ([13 x i32]* @register to float*)
+  %21 = load float, float* bitcast (i32* getelementptr inbounds ([13 x i32], [13 x i32]* @register, i32 0, i32 1) to float*)
+  %22 = fmul float %20, %21
+  store float %22, float* bitcast ([13 x i32]* @register to float*)
+  call void @run_OUT(i64 1992459317728)
   ret void
 }
 
-declare void @run_OUT(i8*)
+declare void @run_OUT(i64)
+

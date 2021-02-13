@@ -69,8 +69,8 @@ class Translator
         vector<BlockInfo> m_bbArray;
         vector<pair<Function*,ui32>> m_funcArray;
 
-        ArrayType* regTableType;
-        ArrayType* memTableType;
+        ArrayType* m_regTableType;
+        ArrayType* m_memTableType;
 
         GlobalVariable* m_reg_table; //variable for access to cpu's registers
         GlobalVariable* m_memory;    //variable for access to cpu's memory
@@ -92,6 +92,7 @@ class Translator
         TranslatorError ASM2LLVM(
             const C_string inputFile,
             const C_string outFile,
+            ui32 memorySize = 128,
             bool doOptimization = false
         );
         void runJIT();
@@ -104,7 +105,7 @@ class Translator
 
         TranslatorError parseBinaryStage(const C_string inputFile);
         TranslatorError genBBStructureStage();
-        TranslatorError LLVMPreparation(const C_string sourceFile);
+        TranslatorError LLVMPreparation(const C_string sourceFile, ui32 memorySize);
         TranslatorError codeGenerationStage();
         TranslatorError verificationStage();
         TranslatorError optimizationStage();

@@ -1,23 +1,14 @@
 #pragma once
-/*
-\brief Упростим себе жизнь, введя короткие названия стандартных типов
-\note  Для каждой реализации компилятора некоторые typedef'ы могут не
-       соттветствовать ожидаемому размеру. При использовании данного 
-       файла в проекте следует проверить размеры каждого typedef.
-@{
-*/
-typedef unsigned char       ui8;
-typedef unsigned short      ui16;
-typedef unsigned int        ui32;
-typedef unsigned long long  ui64;
+#include <stdint.h>
 
-typedef char        i8;
-typedef short       i16;
-typedef int         i32;
-typedef long long   i64;
+typedef uint8_t   ui8;
+typedef uint16_t  ui16;
+typedef uint32_t  ui32;
+typedef uint64_t  ui64;
+
+typedef int8_t    i8;
+typedef int16_t   i16;
+typedef int32_t   i32;
+typedef int64_t   i64;
 
 typedef i8* C_string;
-
-/*
-@}
-*/

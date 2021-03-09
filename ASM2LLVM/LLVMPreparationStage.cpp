@@ -1,5 +1,5 @@
 #include "ASM2LLVM.h"
-#include "CPU/CPU.h"
+#include "CPU/CPUInfo.h"
 
 TranslatorError Translator::LLVMPreparation(const C_string sourceFile, ui32 memorySize)
 {       
@@ -10,10 +10,10 @@ TranslatorError Translator::LLVMPreparation(const C_string sourceFile, ui32 memo
     m_regTableType = ArrayType::get(m_builder.getInt32Ty(), COUNT_REGISTERS);
     m_memTableType = ArrayType::get(m_builder.getInt8Ty(), memorySize);
 
-    m_module->getOrInsertGlobal("register", m_regTableType);
+    m_module->getOrInsertGlobal("regTable", m_regTableType);
     m_module->getOrInsertGlobal("memory", m_memTableType);
 
-    m_reg_table = m_module->getNamedGlobal("register");
+    m_reg_table = m_module->getNamedGlobal("regTable");
     m_memory = m_module->getNamedGlobal("memory");
 
     FunctionType* funcType = FunctionType::get(m_builder.getVoidTy(), false);

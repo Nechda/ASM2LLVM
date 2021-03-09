@@ -9,7 +9,7 @@
 
 
 /*
-\brief  коды ошибок, возвращаемые процессором
+\brief Коды ошибок, возвращаемые процессором
 */
 enum CPUerror
 {
@@ -73,29 +73,3 @@ public:
 
 C_string getStringByErrorCode(CPUerror errorCode);
 
-/*
-\brief номера битов в регистре EFLAGS
-*/
-extern const ui8 FLAG_CF;
-extern const ui8 FLAG_ZF;
-extern const ui8 FLAG_SF;
-
-/*
-\brief номера регистров
-*/
-extern const ui8 EAX_REG_INDEX;
-extern const ui8 EBX_REG_INDEX;
-extern const ui8 ECX_REG_INDEX;
-extern const ui8 EDX_REG_INDEX;
-extern const ui8 ESI_REG_INDEX;
-extern const ui8 EDI_REG_INDEX;
-extern const ui8 ESP_REG_INDEX;
-extern const ui8 EBP_REG_INDEX;
-extern const ui8 EPI_REG_INDEX;
-extern const ui8 EFL_REG_INDEX;
-extern const ui8 ECS_REG_INDEX;
-extern const ui8 EDS_REG_INDEX;
-extern const ui8 ESS_REG_INDEX;
-
-extern const ui8 BYTES_IN_REGISTER;
-extern const ui8 COUNT_REGISTERS;

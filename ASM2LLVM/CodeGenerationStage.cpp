@@ -1,5 +1,6 @@
 #include "ASM2LLVM.h"
 #include "CPU/CPU.h"
+#include "CPU/CPUInfo.h"
 #include "Asm/Asm.h"
 
 using namespace Assembler;
@@ -72,7 +73,7 @@ TranslatorError Translator::codeGenerationStage()
 #define IRFuncPtr(f) &IRBuilder<>::Create##f
 
 /*
-    \brief макросы, генерирующие команды ir, сгенерированная команда помещается в стек
+    \brief Макросы, генерирующие команды ir, сгенерированная команда помещается в стек
 */
 #define c_GEP(ptr, index)          createOnStack<Value*, Value*, Value*  , const Twine&>(IRFuncPtr(GEP)         , ptr, index, "")
 #define c_ConstGEP1_32(ptr, index) createOnStack<Value*, Value*, unsigned, const Twine&>(IRFuncPtr(ConstGEP1_32), ptr, index, "")
@@ -107,7 +108,7 @@ TranslatorError Translator::codeGenerationStage()
 #define c_Not_i1(op1)       createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(ICmpEQ), op1, m_builder.getInt32(0), "")
 
 /*
-    \brief макросы, генерирующие команды ir, аргументы команд берутся из стека
+    \brief Макросы, генерирующие команды ir, аргументы команд берутся из стека
 */
 #define s_CastPtrInt32() c_CastPtrInt32(getAndPop())
 #define s_CastPtrFlt32() c_CastPtrFlt32(getAndPop())
@@ -118,31 +119,41 @@ TranslatorError Translator::codeGenerationStage()
 #define s_Not()          c_Not_i1(getAndPop())
 #define s_Cast_i1()      c_Cast_i1(getAndPop())
 
+
 AsmError Translator::parseExternalFunctions(const Command& cmd)
 {
     static FunctionType* CallType = FunctionType::get(
         m_builder.getVoidTy(),
-        ArrayRef<Type*>({ m_builder.getInt64Ty()}),
+        ArrayRef<Type*>({ m_builder.getInt16Ty(),  m_builder.getInt32Ty(),  m_builder.getInt32Ty() }),
         false
     );
-    Value* instr_p = ConstantInt::get(
-        m_builder.getInt64Ty(),
-        reinterpret_cast<ui64>(&cmd)
-    );
     
+    Value* instr_code = ConstantInt::get(
+        m_builder.getInt16Ty(),
+        cmd.code.marchCode
+    );
 
+    Value* instr_op1 = ConstantInt::get(
+        m_builder.getInt32Ty(),
+        cmd.operand[0].ivalue
+    );
+
+    Value* instr_op2 = ConstantInt::get(
+        m_builder.getInt32Ty(),
+        cmd.operand[1].ivalue
+    );
 
     switch (cmd.code.bits.opCode)
     {
-        #define GEN_SWITCH_CASE(func)\
-        case CMD_##func:\
-        m_builder.CreateCall(\
-            m_module->getOrInsertFunction("run_"#func, CallType),\
-            ArrayRef<Value*>({ instr_p })\
-        );\
-        return ASM_OK;
-        #include "External_functions.inc"
-        #undef GEN_SWITCH_CASE
+        #define INTERPRETATED_FUNCTION(name,code)\
+            case CMD_##name:\
+            m_builder.CreateCall(\
+                m_module->getOrInsertFunction("run_"#name, CallType),\
+                ArrayRef<Value*>({ instr_code, instr_op1, instr_op2 })\
+            );\
+            return ASM_OK;
+            #include "InterpretedFunctions.inc"
+        #undef INTERPRETATED_FUNCTION
     default:
         break;
     }
@@ -209,6 +220,7 @@ AsmError Translator::parseGeneral(const Command& cmd, bool& isEndBBCmd)
 {
     Value* ESPRegisterPtr = nullptr;
     Value* ESPRegister = nullptr;
+    Value* t;
     switch (cmd.code.bits.opCode)
     {
     case CMD_MOV:

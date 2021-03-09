@@ -388,8 +388,9 @@ DEF(
     DUMP,
     make_code(0,26,0), "", "",
     {
-        CPU::Instance().dump(stdout);
-        system("pause");
+        Disassembler::Instance().disasmCommand(*cmd,stdout);
+        //CPU::Instance().dump(stdout);
+        //system("pause");
     }
 )
 

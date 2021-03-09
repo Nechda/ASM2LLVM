@@ -4,8 +4,6 @@ lbl_loop:
 mul ebx, eax
 sub eax, 1
 cmp eax, 1
-je end
-jmp lbl_loop
-end:
+jne lbl_loop
 out ebx
 hlt

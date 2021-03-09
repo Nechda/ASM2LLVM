@@ -8,6 +8,7 @@
 
 #include "Asm/Asm.h"
 #include "CPU/CPU.h"
+#include "CPUInfo.h"
 #include "Stack/Stack_kernel.h"
 #define TYPE_ ui8
 #include "Stack/Stack.h"
@@ -24,47 +25,36 @@ CPU::CPUStruct& myCPU = CPU::myCPU;
 #include <GL\freeglut.h>
 #endif
 
+#define CPU_SMART_PRINT_MEMORY
+#ifdef CPU_SMART_PRINT_MEMORY
+#include <Windows.h>
+
+enum ConsoleColour
+{
+    BLACK, BLUE, GREEN, CYAN,
+    RED, MAGENTA, BROWN, LIGHTGRAY,
+    DARKGRAY, LIGHTBLUE, LIGHTGREEN,
+    LIGHTCYAN, LIGHTRED, LIGHTMAGENTA,
+    YELLOW, WHITE
+};
+
+static void setConsoleColor(int fontColour)
+{
+    WORD wColor = (fontColour & 0x0F);
+    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), wColor);
+}
+
+#define SET_DARK_GRAY setConsoleColor(8)
+#define SET_WHITE     setConsoleColor(15)
+#define RESET_COLOUR  setConsoleColor(7)
+
+#endif
 
 /*
 \brief Константы, определяющие работу процессора
 @{
 */
 const Mcode ASM_HLT = 0 << 6 | 0 << 4 | 0 << 2 | 0x0; ///< Именно эта команда будет завершать работу процессора
-
-
-/*
-\brief номера битов в регистре EFLAGS
-*/
-const ui8 FLAG_CF = 0;
-const ui8 FLAG_ZF = 6;
-const ui8 FLAG_SF = 7;
-
-/*
-\brief номера регистров
-*/
-const ui8 EAX_REG_INDEX = 0;
-const ui8 EBX_REG_INDEX = 1;
-const ui8 ECX_REG_INDEX = 2;
-const ui8 EDX_REG_INDEX = 3;
-const ui8 ESI_REG_INDEX = 4;
-const ui8 EDI_REG_INDEX = 5;
-const ui8 ESP_REG_INDEX = 6;
-const ui8 EBP_REG_INDEX = 7;
-const ui8 EPI_REG_INDEX = 8;
-const ui8 EFL_REG_INDEX = 9;
-const ui8 ECS_REG_INDEX = 10;
-const ui8 EDS_REG_INDEX = 11;
-const ui8 ESS_REG_INDEX = 12;
-
-const ui8 BYTES_IN_REGISTER = sizeof(ui32);
-const ui8 COUNT_REGISTERS = 13;
-
-
-
-
-
-
-
 
 
 #ifdef CPU_GRAPH_MODE
@@ -235,7 +225,7 @@ void CPU::dump(Stream outStream)
     fprintf(outStream, "CPU{\n");
     fprintf(outStream, "    Registers{\n");
     #define printRegInfo(regName)\
-    fprintf(outStream, "        " #regName ":0x%04X  (int: %d) \t(float: %f)\n", myCPU.Register.##regName,myCPU.Register.##regName,*((float*)&myCPU.Register.##regName))
+    fprintf(outStream, "        " #regName ":0x%08X  (int: %011d) \t(float: %f)\n", myCPU.Register.##regName,myCPU.Register.##regName,*((float*)&myCPU.Register.##regName))
     printRegInfo(eax);printRegInfo(ebx);printRegInfo(ecx);printRegInfo(edx);
     printRegInfo(esi);printRegInfo(edi);printRegInfo(ebp);printRegInfo(eip);
     printRegInfo(efl);printRegInfo(ecs);printRegInfo(eds);printRegInfo(esp);
@@ -252,7 +242,13 @@ void CPU::dump(Stream outStream)
         for (int j = 0; j < 16; j++)
         {
             ui8 data = i + j < myCPU.ramSize ? myCPU.RAM[i + j] : 0;
+            if (!data)
+                SET_DARK_GRAY;
+            else
+                SET_WHITE;
             fprintf(outStream, "  0x%02X", data & 0xFF);
+            RESET_COLOUR;
+            
         }
         fprintf(outStream, "\n");
     }

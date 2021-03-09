@@ -1,9 +1,8 @@
 #include "ASM2LLVM.h"
-#include "CPU/CPU.h"
-#include <algorithm>
 #include <iostream>
-#include <llvm/Transforms/InstCombine/InstCombine.h>
 #include <llvm/Transforms/Scalar.h>
+#include <llvm/Transforms/InstCombine/InstCombine.h>
+#include <llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h>
 
 
 using namespace Assembler;
@@ -62,16 +61,18 @@ TranslatorError Translator::optimizationStage()
     // create a new pass manager
     legacy::FunctionPassManager* TheFPM = new legacy::FunctionPassManager(m_module);
 
+    // deleting unreachable code & merging consecutive blocks
+    TheFPM->add(createCFGSimplificationPass());
+
     // combine redundant instructions
     TheFPM->add(createInstructionCombiningPass());
 
-    // deleting unreachable code & merging consecutive blocks
-    TheFPM->add(createCFGSimplificationPass());
+    TheFPM->add(createAggressiveInstCombinerPass());
 
     // multiple use lexically identical expressions
     TheFPM->add(createNewGVNPass());
 
-    //TheFPM->add(createEarlyCSEPass());
+    TheFPM->add(createEarlyCSEPass());
 
     TheFPM->doInitialization();
 
@@ -128,54 +129,4 @@ Translator::ASM2LLVM(const C_string inputFile, const C_string outFile, ui32 memo
     #undef errorCheck
 
     return TR_OK;
-}
-
-
-static const string INTERP_FUNC_NAMES[] =
-{
-    #define DEF(name, mCode, vStr1, vStr2, code)\
-        std::string("run_"#name),
-        #include "Extend.h"
-    #undef DEF
-};
-
-void* lazyFunctionCreator(const string& funcName)
-{
-    for (ui32 i = 0; i < CPU::FUNCTION_TABLE_SIZE; i++)
-        if (funcName == INTERP_FUNC_NAMES[i]) 
-            return reinterpret_cast<void*>(CPU::runFunction[i]);
-    return nullptr;
-}
-
-void Translator::runJIT()
-{
-    InitializeNativeTarget();
-    LLVMInitializeNativeAsmPrinter();
-    LLVMInitializeNativeAsmParser();
-    LLVMLinkInMCJIT();
-
-    std::string err_str;
-
-    ExecutionEngine* ee = EngineBuilder(std::unique_ptr<Module>(m_module))
-        .setEngineKind(EngineKind::JIT)
-        .setErrorStr(&err_str)
-        .create();
-    if (!ee)
-    {
-        printf("Could not create ExecutionEngine: %s", err_str.c_str());
-        return;
-    }
-    ee->InstallLazyFunctionCreator(lazyFunctionCreator);
-
-    ee->addGlobalMapping(m_reg_table, &CPU::myCPU.Register.eax);
-    ee->addGlobalMapping(m_memory, &CPU::myCPU.RAM[0]);
-    ee->finalizeObject();
-
-
-    printf("#[LLVM IR EXEC]:\n");
-    GenericValue result = ee->runFunction(m_mainFunc, vector<GenericValue>());
-    printf("#[LLVM IR EXEC] END\n");
-    
-    printf("CPU dump result:\n");
-    CPU::Instance().dump(stdout);
 }

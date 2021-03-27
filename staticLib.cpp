@@ -43,12 +43,7 @@ extern "C"
 
 static void* getOperand(ui16 marchCode, bool numOperand, ui32& operandValue)
 {
-    // this strange expression (1-numOperand) is caused by a mistake in functions
-    // getOperandType() & setOperandType in Asm.cpp
-    // if( opIndex == 1) should be replaced to if ( opIndex == 0 )
-    // due to this mistake we have to use this strange expression to
-    // get a type of an operand
-    ui8 type = (marchCode >> (2 + 2 * (1 - numOperand))) & 0b11;
+    ui8 type = (marchCode >> (2 + 2 * numOperand)) & 0b11;
 
 
     if (type == 0b00) // register

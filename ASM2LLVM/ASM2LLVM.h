@@ -45,6 +45,7 @@ enum TranslatorError
     TR_ERROR_WRITING_IN_FILE
 };
 
+
 //This define is for creating simple LLVM IR program and exceuting it
 //Usually uses for debug
 //#define LLVM_IR_SIMPLEST_PROGRAMM
@@ -56,7 +57,9 @@ enum TranslatorError
 class Translator
 {
     private:
-        vector<Command> m_commandList; //list of disassembled commands
+        vector<Command> m_commandList;      //list of disassembled commands
+        vector<ui8> m_bytesFromDataSection; //list of bytes from binary's data section
+        ui32 m_textSectionSize;             //size of .text section in bytes
 
         struct BlockInfo
         {
@@ -132,11 +135,3 @@ class Translator
             void LLVMGenSimplestProgram(const C_string sourceFile);
         #endif
 };
-
-
-inline bool isBranchCommand(const ui8 cmdOpCode)
-{
-    return Assembler::CMD_JE <= cmdOpCode && cmdOpCode <= Assembler::CMD_JBE
-        || cmdOpCode == Assembler::CMD_JMP
-        || cmdOpCode == Assembler::CMD_CALL;
-}

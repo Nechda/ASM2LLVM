@@ -1,6 +1,7 @@
 #pragma once
 #include "Asm/Asm.h"
 #include "Tools/Argparser.h"
+//#include "Profiler/Profiler.h"
 
 #include "Stack/Stack_kernel.h"
 #define TYPE_ ui8
@@ -21,53 +22,74 @@ enum CPUerror
     CPU_INVALID_INPUT_DATA
 };
 
-#define DUMP_PRINT_MEMORY
+//#define CPU_GRAPH_MODE
+//#define CPU_PROFILER
+//#define DUMP_PRINT_MEMORY
+//#define CPU_SMART_PRINT_MEMORY
+
+
 
 class CPU
 {
-public:
-    static CPU& Instance()
-    {
-        static CPU theInstance;
-        return theInstance;
-    }
-    void dump(Stream outStream);
-    void status();
-    void init(const InputParams inParam);
-    CPUerror run(ui8* bytes, ui32 size, ui32 ptrStart);
-    ~CPU();
-private:
-    CPU() {};
-    CPU(const CPU&) = delete;
-    CPU& operator=(const CPU) = delete;
-    CPUerror evaluate();
-public:
-    static struct CPUStruct
-    {
-        bool isValid = 0;
-        int  interruptCode = 0;
-        bool stepByStep = 0;
-        bool isGraphMode = 0;
-        bool isVideoMemoryChanged = 0;
-        struct
+    public:
+        static CPU& Instance()
         {
-            ui32 x = 0;
-            ui32 y = 0;
-        }ChangedPixel;
-        ui32 ramSize = 8;
-        struct
+            static CPU theInstance;
+            return theInstance;
+        }
+        void dump(Stream outStream);
+        void status();
+        void init(const InputParams inParam);
+        CPUerror run(ui8* bytes, ui32 size, ui32 ptrStart);
+        ~CPU();
+    private:
+        CPU() {};
+        CPU(const CPU&) = delete;
+        CPU& operator=(const CPU) = delete;
+        CPUerror evaluate();
+        //Profiler profiler;
+        void* convertVirtualAddrToPhysical(ui32 addr);
+    public:
+        static struct CPUStruct
         {
-            ui32 eax; ui32 ebx; ui32 ecx; ui32 edx;
-            ui32 esi; ui32 edi; ui32 esp; ui32 ebp;
-            ui32 eip; ui32 efl; ui32 ecs; ui32 eds;
-            ui32 ess;
-        }Register;
-        ui8* RAM = NULL;
-        Stack(ui8) stack;
-    }myCPU;
-    typedef void(*PtrToFunction)(Assembler::Command*);
-    static PtrToFunction runFunction[];
-    static const ui32 FUNCTION_TABLE_SIZE;
+            bool isValid = 0;
+            int  interruptCode = 0;
+            bool stepByStep = 0;
+            bool isGraphMode = 0;
+            bool isVideoMemoryChanged = 0;
+            struct
+            {
+                ui32 x = 0;
+                ui32 y = 0;
+            }ChangedPixel;
+            ui32 ramSize = 8;
+            struct
+            {
+                ui32 eax; ui32 ebx; ui32 ecx; ui32 edx;
+                ui32 esi; ui32 edi; ui32 esp; ui32 ebp;
+                ui32 eip; ui32 efl; ui32 ecs; ui32 eds;
+                ui32 ess;
+            }Register;
+            struct
+            {
+                union
+                {
+                    struct
+                    {
+                        ui32 permissionLvl   : 2;
+                        ui32 reserved        : 10;
+                        ui32 pureMappingAddr : 20;
+                    };
+                    ui32 bits;
+                }CR;
+                ui32 GPT;
+            }ControlRegister;
+            ui8* RAM = NULL;
+            Stack(ui8) stack;
+        }myCPU;
+        typedef void(*PtrToFunction)(Assembler::Command*);
+        static PtrToFunction runFunction[];
+        static const ui32 FUNCTION_TABLE_SIZE;
 };
 
 

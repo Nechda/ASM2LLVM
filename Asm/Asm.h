@@ -11,7 +11,6 @@ const int ASM_ERROR_CODE = -1;
 using std::vector;
 
 
-
 namespace Assembler
 {
     /*
@@ -54,11 +53,14 @@ namespace Assembler
                 ui8 nOperands  : 2;
                 ui8 typeFirst  : 2;
                 ui8 typeSecond : 2;
-                ui8            : 2;
-                ui8 opCode     : 8;
-            }bits;
-        }code;
-        OperandUnion operand[2] = { 0, 0 };
+                ui8 typeThird  : 2;
+                ui8 longCommand: 1;
+                ui8 reserved   : 1;
+                ui8 opCode     : 6;
+            };
+        }bits;
+        OperandUnion operand[3] = { 0, 0, 0 };
+        ui32 extend[3] = { 0, 0, 0 };
         ui8 sizeCommand = 0;
     };
 
@@ -93,7 +95,7 @@ namespace Assembler
                 static Disassembler theInstance;
                 return theInstance;
             }
-            AsmError generateCommandList(vector<Command>& commands, i8* bytes, i32 nBytes);
+            AsmError generateCommandList(vector<Command>& commands, vector<ui8>& bytesFromDataSection, i8* bytes, i32 nBytes);
             AsmError disasm(const ui8* code, int size, FILE* stream);
             void disasmCommand(Command cmd, FILE* stream);
         private:

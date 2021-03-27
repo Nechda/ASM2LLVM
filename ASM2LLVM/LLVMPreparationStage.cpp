@@ -28,9 +28,16 @@ TranslatorError Translator::LLVMPreparation(const C_string sourceFile, ui32 memo
         m_builder.SetInsertPoint(entryBB);
     }
     
-    //call @func_0() from @main_func()
+    //define @main_func()
     entryBB = BasicBlock::Create(m_context, "entry", m_mainFunc);
     m_builder.SetInsertPoint(entryBB);
+    //set the bytes from .data section
+    for (ui32 i = 0; i < m_bytesFromDataSection.size(); i++)
+    {
+        Value* ptToRam = m_builder.CreateConstGEP2_32(m_memTableType, m_memory, 0, m_textSectionSize + i);
+        m_builder.CreateStore(m_builder.getInt8(m_bytesFromDataSection[i]), ptToRam);
+    }
+    //call @func_0() from @main_func()
     m_builder.CreateCall(m_funcArray[0].first);
     m_builder.CreateRetVoid();
 

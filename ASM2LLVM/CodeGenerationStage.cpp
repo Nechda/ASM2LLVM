@@ -7,9 +7,12 @@ using namespace Assembler;
 
 const ui32 RING_BUFFER_CAPACITY = 8;
 
-static Value* operand[2] = { nullptr, nullptr };
-static Value* operand_ptr[2] = { nullptr, nullptr };
+static Value* operand[3] = { nullptr, nullptr, nullptr };
+static Value* operand_ptr[3] = { nullptr, nullptr, nullptr };
 static circular_buffer<Value*> ringBufValue(RING_BUFFER_CAPACITY);
+
+bool isBranchCommand(const ui8 cmdOpCode);//< Defined in ASM2LLVM.cpp
+
 
 static Value* getAndPop()
 {
@@ -85,6 +88,9 @@ TranslatorError Translator::codeGenerationStage()
 
 
 #define c_CastI1toI32(op)   createOnStack<Value*, Value*, Type*, bool, const Twine&>(IRFuncPtr(IntCast), op, Type::getInt32Ty(m_context), 1, "") //signed
+#define c_CastFtoI32(op)    createOnStack<Value*, Instruction::CastOps, Value*, Type*, const Twine&>(IRFuncPtr(Cast), Instruction::FPToSI, op, Type::getFloatTy(m_context), "") //signed
+
+
 
 #define c_Load(ptr)         createOnStack<LoadInst* , Value*, const Twine&>(IRFuncPtr(Load ), ptr , ""    )
 #define c_Store(data, ptr)  createOnStack<StoreInst*,Value*, Value* , bool>(IRFuncPtr(Store), data, ptr, 0); ringBufValue.pop_back()
@@ -98,15 +104,28 @@ TranslatorError Translator::codeGenerationStage()
 #define c_Sub(op1, op2)     createOnStack<Value*, Value*, Value*  , const Twine&, bool, bool>(IRFuncPtr(Sub), op1, op2, "", 0, 0)
 #define c_Mul(op1, op2)     createOnStack<Value*, Value*, Value*  , const Twine&, bool, bool>(IRFuncPtr(Mul), op1, op2, "", 0, 0)
 #define c_Div(op1, op2)     c_FDiv(op1, op2)
+#define c_Mod(op1, op2)     createOnStack<Value*, Value*, Value*  , const Twine&>(IRFuncPtr(SRem), op1, op2, "")
+
 
 #define c_Not(op1)          createOnStack<Value*, Value*, const Twine&, MDNode*     >(IRFuncPtr(Not)   , op1, "")
 #define c_And(op1, op2)     createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(And)   , op1, op2, "")
 #define c_Or(op1, op2)      createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(Or)    , op1, op2, "")
+#define c_Xor(op1, op2)     createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(Xor)    , op1, op2, "")
 #define c_And_i64(op1,op2)  createOnStack<Value*, Value*, uint64_t    , const Twine&>(IRFuncPtr(And)   , op1, op2, "")
 #define c_Or_i64(op1,op2)   createOnStack<Value*, Value*, uint64_t    , const Twine&>(IRFuncPtr(Or)    , op1, op2, "")
 #define c_Cast_i1(op1)      createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(ICmpNE), op1, m_builder.getInt32(0), "")
 #define c_Not_i1(op1)       createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(ICmpEQ), op1, m_builder.getInt32(0), "")
 
+
+#define c_ICmpEQ(op1, op2)   createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(ICmpEQ)   , op1, op2, "") //equal
+#define c_ICmpNE(op1, op2)   createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(ICmpNE)   , op1, op2, "") //not equal
+#define c_ICmpSGT(op1, op2)  createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(ICmpSGT)  , op1, op2, "") //greater than
+#define c_ICmpSGE(op1, op2)  createOnStack<Value*, Value*, Value*      , const Twine&>(IRFuncPtr(ICmpSGE)  , op1, op2, "") //greater or equal
+
+#define c_FCmpEQ(op1, op2)   createOnStack<Value*, Value*, Value*      , const Twine&, MDNode*>(IRFuncPtr(FCmpOEQ)  , op1, op2, "", nullptr) //equal
+#define c_FCmpNE(op1, op2)   createOnStack<Value*, Value*, Value*      , const Twine&, MDNode*>(IRFuncPtr(FCmpONE)  , op1, op2, "", nullptr) //not equal
+#define c_FCmpGT(op1, op2)   createOnStack<Value*, Value*, Value*      , const Twine&, MDNode*>(IRFuncPtr(FCmpOGT)  , op1, op2, "", nullptr) //greater than
+#define c_FCmpGE(op1, op2)   createOnStack<Value*, Value*, Value*      , const Twine&, MDNode*>(IRFuncPtr(FCmpOGE)  , op1, op2, "", nullptr) //greater or equal
 /*
     \brief Макросы, генерирующие команды ir, аргументы команд берутся из стека
 */
@@ -116,9 +135,29 @@ TranslatorError Translator::codeGenerationStage()
 #define s_Load()         c_Load(getAndPop())
 #define s_And()          c_And(getAndPop(),getAndPop())
 #define s_Or()           c_Or(getAndPop(),getAndPop())
+#define s_Xor()          c_Xor(getAndPop(),getAndPop())
 #define s_Not()          c_Not_i1(getAndPop())
 #define s_Cast_i1()      c_Cast_i1(getAndPop())
 
+#define c_Intrinsic(intr, op)\
+    do {\
+        Value* intrinsicValue = m_builder.CreateIntrinsic(\
+            intr,\
+            { Type::getFloatTy(m_context) },\
+            { op }\
+        );\
+        ringBufValue.push_back(intrinsicValue);\
+    } while (0)
+
+#define c_Intrinsic2(intr, op1, op2)\
+    do {\
+        Value* intrinsicValue = m_builder.CreateIntrinsic(\
+            intr,\
+            { Type::getFloatTy(m_context), Type::getFloatTy(m_context) },\
+            { op1, op2 }\
+        );\
+        ringBufValue.push_back(intrinsicValue);\
+    } while (0)
 
 AsmError Translator::parseExternalFunctions(const Command& cmd)
 {
@@ -130,7 +169,7 @@ AsmError Translator::parseExternalFunctions(const Command& cmd)
     
     Value* instr_code = ConstantInt::get(
         m_builder.getInt16Ty(),
-        cmd.code.marchCode
+        cmd.bits.marchCode
     );
 
     Value* instr_op1 = ConstantInt::get(
@@ -143,7 +182,7 @@ AsmError Translator::parseExternalFunctions(const Command& cmd)
         cmd.operand[1].ivalue
     );
 
-    switch (cmd.code.bits.opCode)
+    switch (cmd.bits.opCode)
     {
         #define INTERPRETATED_FUNCTION(name,code)\
             case CMD_##name:\
@@ -160,19 +199,18 @@ AsmError Translator::parseExternalFunctions(const Command& cmd)
     return ASM_ERROR_GEN_LABLE_TABLE;
 }
 
+
 AsmError Translator::parseOperands(const Command& cmd)
 {
-    bool isFloatPointOperands = cmd.code.bits.opCode >= FPU_ISA_START_CODE;
-    if (cmd.code.bits.nOperands > 2)
-    {
-        logger.push("Error",
-            "{Parsing asm commands}: Invalid number of operands. mCode: 0x%X",
-            cmd.code.marchCode & 0xFFFF
-        );
-        return ASM_ERROR_INVALID_OPERANDS_NUMBER;
-    }
+    bool isFloatPointOperands = cmd.bits.opCode >= FPU_ISA_START_CODE;
+    isFloatPointOperands &= !(
+        cmd.bits.opCode == CMD_ABS
+     || cmd.bits.opCode == CMD_FISTP
+     || cmd.bits.opCode == CMD_MOD
+    );
 
-    for (ui8 i = 0; i < cmd.code.bits.nOperands; i++)
+
+    for (ui8 i = 0; i < cmd.bits.nOperands; i++)
     {
         OperandType opType = getOperandType(cmd, i);
         switch (opType)
@@ -198,6 +236,8 @@ AsmError Translator::parseOperands(const Command& cmd)
         case OPERAND_MEM_BY_REG:
             c_ConstGEP2_32(m_regTableType, m_reg_table, 0, cmd.operand[i].ivalue - 1);
             s_Load();
+            if (cmd.bits.longCommand)
+                c_Add(getAndPop(), m_builder.getInt32(cmd.extend[i]));
             c_GEPList(m_memTableType, m_memory, ArrayRef<Value*>({ m_builder.getInt32(0),ringBufValue.back()} ) );
             if (isFloatPointOperands) s_CastPtrFlt32();
             else s_CastPtrInt32();
@@ -207,7 +247,7 @@ AsmError Translator::parseOperands(const Command& cmd)
         default:
             logger.push("Error",
                 "{Parsing asm commands}: Invalid type of operands. mCode: 0x%X",
-                cmd.code.marchCode & 0xFFFF
+                cmd.bits.marchCode & 0xFFFF
             );
             return ASM_ERROR_INVALID_OPERAND_SYNTAX;
             break;
@@ -220,97 +260,132 @@ AsmError Translator::parseGeneral(const Command& cmd, bool& isEndBBCmd)
 {
     Value* ESPRegisterPtr = nullptr;
     Value* ESPRegister = nullptr;
-    Value* t;
-    switch (cmd.code.bits.opCode)
+    switch (cmd.bits.opCode)
     {
-    case CMD_MOV:
-        c_Store(operand[1], operand_ptr[0]);
-        break;
-    case CMD_ADD:
-        c_Add(operand[0], operand[1]);
-        c_Store(ringBufValue.back(), operand_ptr[0]);
-        break;
-    case CMD_SUB:
-        c_Sub(operand[0], operand[1]);
-        c_Store(ringBufValue.back(), operand_ptr[0]);
-        break;
-    case CMD_MUL:
-        c_Mul(operand[0], operand[1]);
-        c_Store(ringBufValue.back(), operand_ptr[0]);
-        break;
-    case CMD_DIV:
-        c_Div(operand[0], operand[1]);
-        c_Store(ringBufValue.back(), operand_ptr[0]);
-        break;
-    case CMD_FADD:
-        c_FAdd(operand[0], operand[1]);
-        c_Store(ringBufValue.back(), operand_ptr[0]);
-        break;
-    case CMD_FSUB:
-        c_FSub(operand[0], operand[1]);
-        c_Store(ringBufValue.back(), operand_ptr[0]);
-        break;
-    case CMD_FMUL:
-        c_FMul(operand[0], operand[1]);
-        c_Store(ringBufValue.back(), operand_ptr[0]);
-        break;
-    case CMD_FDIV:
-        c_FDiv(operand[0], operand[1]);
-        c_Store(ringBufValue.back(), operand_ptr[0]);
-        break;
-    case CMD_PUSH:
-        ESPRegisterPtr = c_ConstGEP2_32(m_regTableType, m_reg_table, 0, ESP_REG_INDEX);
-        ESPRegister = c_Load(ESPRegisterPtr);
-        c_GEPList(m_memTableType, m_memory, ArrayRef<Value*>({ m_builder.getInt32(0), ringBufValue.back() }));
-        s_CastPtrInt32();
-        c_Store(operand[0], ringBufValue.back());
-        c_Add(ESPRegister, m_builder.getInt32(BYTES_IN_REGISTER));
-        c_Store(ringBufValue.back(), ESPRegisterPtr);
-        break;
-    case CMD_POP:
-        ESPRegisterPtr = c_ConstGEP2_32(m_regTableType, m_reg_table, 0, ESP_REG_INDEX);
-        ESPRegister = c_Load(ESPRegisterPtr);
-        c_Sub(ESPRegister, m_builder.getInt32(BYTES_IN_REGISTER));
-        c_Store(ringBufValue.back(), ESPRegisterPtr);
-        c_GEPList(m_memTableType, m_memory, ArrayRef<Value*>({ m_builder.getInt32(0), ringBufValue.back() }));
-        s_CastPtrInt32();
-        s_Load();
-        c_Store(ringBufValue.back(), operand_ptr[0]);
-        break;
-    case CMD_RET:
-        isEndBBCmd |= 1;
-        ESPRegisterPtr = c_ConstGEP2_32(m_regTableType, m_reg_table, 0, ESP_REG_INDEX);
-        ESPRegister = c_Load(ESPRegisterPtr);
-        c_Sub(ESPRegister, m_builder.getInt32(BYTES_IN_REGISTER));
-        c_Store(ringBufValue.back(), ESPRegisterPtr);
-        m_builder.CreateRetVoid();
-        break;
-    case CMD_HLT:
-        isEndBBCmd |= 1;
-        m_builder.CreateRetVoid();
-        break;
-    case CMD_AND:
-        c_Cast_i1(operand[0]);
-        c_Cast_i1(operand[1]);
-        s_And();
-        s_CastI1toI32();
-        c_Store(ringBufValue.back(), operand_ptr[0]);
-        break;
-    case CMD_OR:
-        c_Cast_i1(operand[0]);
-        c_Cast_i1(operand[1]);
-        s_Or();
-        s_CastI1toI32();
-        c_Store(ringBufValue.back(), operand_ptr[0]);
-        break;
-    default:
-        logger.push("Error",
-            "{Parsing asm commands}: The command doesn't support. mCode: 0x%X",
-            cmd.code.marchCode & 0xFFFF
-        );
-        m_disasembler.disasmCommand(cmd, logger.getStream());
-        return ASM_ERROR_INVALID_OPERAND_SYNTAX;
-        break;
+        case CMD_MOV:
+            c_Store(operand[1], operand_ptr[0]);
+            break;
+        case CMD_ADD:
+            c_Add(operand[1], operand[2]);
+            c_Store(ringBufValue.back(), operand_ptr[0]);
+            break;
+        case CMD_SUB:
+            c_Sub(operand[1], operand[2]);
+            c_Store(ringBufValue.back(), operand_ptr[0]);
+            break;
+        case CMD_MUL:
+            c_Mul(operand[1], operand[2]);
+            c_Store(ringBufValue.back(), operand_ptr[0]);
+            break;
+        case CMD_DIV:
+            c_Div(operand[1], operand[2]);
+            c_Store(ringBufValue.back(), operand_ptr[0]);
+            break;
+        case CMD_FADD:
+            c_FAdd(operand[1], operand[2]);
+            c_Store(ringBufValue.back(), operand_ptr[0]);
+            break;
+        case CMD_FSUB:
+            c_FSub(operand[1], operand[2]);
+            c_Store(ringBufValue.back(), operand_ptr[0]);
+            break;
+        case CMD_FMUL:
+            c_FMul(operand[1], operand[2]);
+            c_Store(ringBufValue.back(), operand_ptr[0]);
+            break;
+        case CMD_FDIV:
+            c_FDiv(operand[1], operand[2]);
+            c_Store(ringBufValue.back(), operand_ptr[0]);
+            break;
+        case CMD_PUSH:
+            ESPRegisterPtr = c_ConstGEP2_32(m_regTableType, m_reg_table, 0, ESP_REG_INDEX);
+            ESPRegister = c_Load(ESPRegisterPtr);
+            c_GEPList(m_memTableType, m_memory, ArrayRef<Value*>({ m_builder.getInt32(0), ringBufValue.back() }));
+            s_CastPtrInt32();
+            c_Store(operand[0], ringBufValue.back());
+            c_Add(ESPRegister, m_builder.getInt32(BYTES_IN_REGISTER));
+            c_Store(ringBufValue.back(), ESPRegisterPtr);
+            break;
+        case CMD_POP:
+            ESPRegisterPtr = c_ConstGEP2_32(m_regTableType, m_reg_table, 0, ESP_REG_INDEX);
+            ESPRegister = c_Load(ESPRegisterPtr);
+            c_Sub(ESPRegister, m_builder.getInt32(BYTES_IN_REGISTER));
+            c_Store(ringBufValue.back(), ESPRegisterPtr);
+            c_GEPList(m_memTableType, m_memory, ArrayRef<Value*>({ m_builder.getInt32(0), ringBufValue.back() }));
+            s_CastPtrInt32();
+            s_Load();
+            c_Store(ringBufValue.back(), operand_ptr[0]);
+            break;
+        case CMD_RET:
+            isEndBBCmd |= 1;
+            ESPRegisterPtr = c_ConstGEP2_32(m_regTableType, m_reg_table, 0, ESP_REG_INDEX);
+            ESPRegister = c_Load(ESPRegisterPtr);
+            c_Sub(ESPRegister, m_builder.getInt32(BYTES_IN_REGISTER));
+            c_Store(ringBufValue.back(), ESPRegisterPtr);
+            m_builder.CreateRetVoid();
+            break;
+        case CMD_HLT:
+            isEndBBCmd |= 1;
+            m_builder.CreateRetVoid();
+            break;
+        case CMD_AND:
+            c_And(operand[1], operand[2]);
+            c_Store(ringBufValue.back(), operand_ptr[0]);
+            break;
+        case CMD_OR:
+            c_Or(operand[1], operand[2]);
+            c_Store(ringBufValue.back(), operand_ptr[0]);
+            break;
+        case CMD_XOR:
+            c_Xor(operand[1], operand[2]);
+            c_Store(ringBufValue.back(), operand_ptr[0]);
+            break;
+        case CMD_FSQRT:
+            c_Intrinsic(Intrinsic::sqrt, operand[0]);
+            c_Store(getAndPop(), operand_ptr[0]);
+            break;
+        case CMD_FSIN:
+            c_Intrinsic(Intrinsic::sin, operand[0]);
+            c_Store(getAndPop(), operand_ptr[0]);
+            break;
+        case CMD_FCOS:
+            c_Intrinsic(Intrinsic::cos, operand[0]);
+            c_Store(getAndPop(), operand_ptr[0]);
+            break;
+        case CMD_FABS:
+            c_Intrinsic(Intrinsic::fabs, operand[0]);
+            c_Store(getAndPop(), operand_ptr[0]);
+            break;
+        case CMD_FPOW:
+            c_Intrinsic2(Intrinsic::pow, operand[0], operand[1]);
+            c_Store(getAndPop(), operand_ptr[0]);
+            break;
+        case CMD_FISTP:
+            c_Intrinsic(Intrinsic::floor, operand[0]);
+            c_Store(getAndPop(), operand_ptr[0]);
+            break;
+        case CMD_FILD:
+            c_CastFtoI32(operand[0]);
+            c_Store(getAndPop(), operand_ptr[0]);
+            break;
+        case CMD_ATAN2:
+            throw "Uh ... atan2 hasn`t implemented yet.";
+            break;
+        case CMD_ABS:
+            throw "Uh ... abs hasn`t implemented yet.";
+            break;
+        case CMD_MOD:
+            c_Mod(operand[0], operand[1]);
+            c_Store(getAndPop(), operand_ptr[0]);
+            break;
+        default:
+            logger.push("Error",
+                "{Parsing asm commands}: The command doesn't support. mCode: 0x%X",
+                cmd.bits.marchCode & 0xFFFF
+            );
+            m_disasembler.disasmCommand(cmd, logger.getStream());
+            return ASM_ERROR_INVALID_OPERAND_SYNTAX;
+            break;
     }
     return ASM_OK;
 }
@@ -319,7 +394,7 @@ AsmError Translator::parseBranches(const Command& cmd, bool& isEndBBCmd)
 {
     Value* ESPRegisterPtr = nullptr;
     Value* ESPRegister = nullptr;
-    if (cmd.code.bits.opCode == CMD_CALL)
+    if (cmd.bits.opCode == CMD_CALL)
     {
         ui32 funcIndex = m_bbArray[cmd.operand[0].ivalue].funcIndex;
 
@@ -333,55 +408,35 @@ AsmError Translator::parseBranches(const Command& cmd, bool& isEndBBCmd)
     }
 
     isEndBBCmd |= 1;
-    if (cmd.code.bits.opCode == CMD_JMP)
+    if (cmd.bits.opCode == CMD_JMP)
     {
         m_builder.CreateBr(m_bbArray[cmd.operand[0].ivalue].bb);
         return ASM_OK;
     }
 
-    c_ConstGEP2_32(m_regTableType, m_reg_table, 0, EFL_REG_INDEX);
-    Value* eflRegister = s_Load();
-    switch (cmd.code.bits.opCode)
+
+    switch (cmd.bits.opCode)
     {
-    case CMD_JE:
-        c_And(eflRegister, m_builder.getInt32(1 << FLAG_ZF));
-        s_Cast_i1();
-        break;
-    case CMD_JNE:
-        c_And(eflRegister, m_builder.getInt32(1 << FLAG_ZF));
-        s_Not();
-        break;
-    case CMD_JA:
-        c_And(eflRegister, m_builder.getInt32(1 << FLAG_CF));
-        s_Not();
-        c_And(eflRegister, m_builder.getInt32(1 << FLAG_ZF));
-        s_Not();
-        s_And();
-        break;
-    case CMD_JAE:
-        c_And(eflRegister, m_builder.getInt32(1 << FLAG_CF));
-        s_Not();
-        break;
-    case CMD_JB:
-        c_And(eflRegister, m_builder.getInt32(1 << FLAG_CF));
-        s_Cast_i1();
-        break;
-    case CMD_JBE:
-        c_And(eflRegister, m_builder.getInt32(1 << FLAG_CF));
-        c_And(eflRegister, m_builder.getInt32(1 << FLAG_ZF));
-        s_Or();
-        s_Cast_i1();
-        break;
-    default:
-        logger.push("Error",
-            "{Parsing asm commands}: The command doesn't support. mCode: 0x%X",
-            cmd.code.marchCode & 0xFFFF
-        );
-        m_disasembler.disasmCommand(cmd, logger.getStream());
-        return ASM_ERROR_INVALID_OPERAND_SYNTAX;
-        break;
+        case CMD_JE:   c_ICmpEQ( operand[0], operand[1]);  break;
+        case CMD_JNE:  c_ICmpNE( operand[0], operand[1]);  break;
+        case CMD_JA:   c_ICmpSGT(operand[0], operand[1]);  break;
+        case CMD_JAE:  c_ICmpSGE(operand[0], operand[1]);  break;
+        case CMD_FJE:  c_FCmpEQ( operand[0], operand[1]);  break;
+        case CMD_FJNE: c_FCmpNE( operand[0], operand[1]);  break;
+        case CMD_FJA:  c_FCmpGT( operand[0], operand[1]);  break;
+        case CMD_FJAE: c_FCmpGE( operand[0], operand[1]);  break;
+        default:
+            logger.push("Error",
+                "{Parsing asm commands}: The command doesn't support. mCode: 0x%X",
+                cmd.bits.marchCode & 0xFFFF
+            );
+            m_disasembler.disasmCommand(cmd, logger.getStream());
+            return ASM_ERROR_INVALID_OPERAND_SYNTAX;
+            break;
     }
-    m_builder.CreateCondBr(ringBufValue.back(), m_bbArray[cmd.operand[0].ivalue].bb, m_bbArray[m_currBBIndex + 1].bb);
+
+
+    m_builder.CreateCondBr(ringBufValue.back(), m_bbArray[cmd.operand[2].ivalue].bb, m_bbArray[m_currBBIndex + 1].bb);
     return ASM_OK;
 }
 
@@ -395,7 +450,7 @@ AsmError Translator::LLVMPareseCommand(const Command& cmd, bool& isEndBBCmd, con
     errorCode = parseOperands(cmd);
     if (ASM_OK != errorCode) return errorCode;
 
-    if(!isBranchCommand(cmd.code.bits.opCode))
+    if(!isBranchCommand(cmd.bits.opCode))
         errorCode = parseGeneral(cmd, isEndBBCmd);
     else
         errorCode = parseBranches(cmd, isEndBBCmd);

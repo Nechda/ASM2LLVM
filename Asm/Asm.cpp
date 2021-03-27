@@ -6,11 +6,14 @@
 #include <ctype.h>
 #include <iostream>
 
+#include "StaticString.h"
+
+
 using namespace Assembler;
 
 Lexema commandTable[] = {
-    #define DEF(name, mCode, vStr1, vStr2, code) \
-        {#name, mCode, vStr1, vStr2},
+    #define DEF(name, mCode, vStr1, vStr2, vStr3, code) \
+        {#name, mCode, vStr1, vStr2, vStr3},
     #include "Extend.h"
     #undef DEF
 };
@@ -35,10 +38,21 @@ const ui32 REGISTER_TABLE_SIZE = sizeof(registerTable) / sizeof(Lexema);
 */
 void Assembler::setOperandType(Command& cmd, ui8 opIndex, OperandType type)
 {
-    if (opIndex == 1)
-        cmd.code.bits.typeFirst = (ui8)type & 0b11;
-    else
-        cmd.code.bits.typeSecond = (ui8)type & 0b11;
+    switch (opIndex + 1)
+    {
+        case 1: 
+            cmd.bits.typeFirst = (ui8)type & 0b11;
+            break;
+        case 2:
+            cmd.bits.typeSecond = (ui8)type & 0b11;
+            break;
+        case 3:
+            cmd.bits.typeThird = (ui8)type & 0b11;
+            break;
+        default:
+            printf("Undefined operandType, cmd: 0x%X\n", cmd.bits.marchCode);
+            break;
+    }
 }
 
 
@@ -50,10 +64,19 @@ void Assembler::setOperandType(Command& cmd, ui8 opIndex, OperandType type)
 */
 OperandType Assembler::getOperandType(Command cmd, ui8 opIndex)
 {
-    if (opIndex == 1)
-        return (OperandType)cmd.code.bits.typeFirst;
-    else
-        return (OperandType)cmd.code.bits.typeSecond;
+
+    switch (opIndex + 1)
+    {
+        case 1:
+            return (OperandType)cmd.bits.typeFirst;
+        case 2:
+            return (OperandType)cmd.bits.typeSecond;
+        case 3:
+            return (OperandType)cmd.bits.typeThird;
+        default:
+            printf("Undefined operandType, cmd: 0x%X\n", cmd.bits.marchCode);
+            return (OperandType)0;
+    }
 }
 
 

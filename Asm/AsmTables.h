@@ -1,7 +1,6 @@
 #pragma once
 #include "Types.h"
 
-
 /*
 \brief Структура, описывающая минимальную единицу языка
 */
@@ -11,6 +10,7 @@ struct Lexema
     ui16 machineCode;
     char* validFirstOperand;
     char* validSecondOperand;
+    char* validThirdOperand;
 };
 
 

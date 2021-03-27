@@ -7,6 +7,33 @@
 
 using namespace Assembler;
 
+bool isBranchCommand(const ui8 cmdOpCode);              
+ui32& getOperandConsistAddrInBrchCommand(Assembler::Command& cmd);
+
+
+/**
+    Добавим вспомогательную функцию, которая
+    будет определять задает ли команда операцию
+    ветвления.
+*/
+bool isBranchCommand(const ui8 cmdOpCode)
+{
+    return CMD_JMP <= cmdOpCode && cmdOpCode <= CMD_JAE
+        || CMD_FJE <= cmdOpCode && cmdOpCode <= CMD_FJAE
+        || CMD_CALL == cmdOpCode;
+}
+
+/**
+    Также потребуется функция, которая будет возвращать
+    адрес перехода операторов ветвления.
+*/
+ui32& getOperandConsistAddrInBrchCommand(Command& cmd)
+{
+    return cmd.bits.opCode == CMD_JMP
+        || cmd.bits.opCode == CMD_CALL
+        ? cmd.operand[0].ivalue : cmd.operand[2].ivalue;
+}
+
 
 TranslatorError Translator::codePrintStage(const C_string outFile)
 {
@@ -73,6 +100,7 @@ TranslatorError Translator::optimizationStage()
     TheFPM->add(createNewGVNPass());
 
     TheFPM->add(createEarlyCSEPass());
+    TheFPM->add(createCFGSimplificationPass());
 
     TheFPM->doInitialization();
 

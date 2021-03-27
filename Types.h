@@ -11,4 +11,4 @@ typedef int16_t   i16;
 typedef int32_t   i32;
 typedef int64_t   i64;
 
-typedef i8* C_string;
+typedef char* C_string;

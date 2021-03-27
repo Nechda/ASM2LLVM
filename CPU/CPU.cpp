@@ -22,33 +22,66 @@ CPU::CPUStruct CPU::myCPU = {};
 CPU::CPUStruct& myCPU = CPU::myCPU;
 
 #ifdef CPU_GRAPH_MODE
-#include <GL\freeglut.h>
+    #include <GL\freeglut.h>
+
+    /**
+    \brief Константы, задающие режим работы с графикой
+    */
+
+    const ui32 VIDEO_MEMORY_PTR = 0xA00;    ///<именно в сюда нужно будет писать данные в память, чтобы можно было что-то выводить на экран
+    const ui16 STANDART_FONT_SIZE = 105;    ///<Размер шрифта в юнитах, данная константа получена через glutWidth(...)
+
+    void drawFromVideoMemory();///<Функция, которая будет рисовать на экран все, что располагается в видео буфере
+
+
+    /*
+    \brief Описание структуры консольного окна
+    */
+    struct Window
+    {
+        ui16 nCols = 80;
+        ui16 nLines = 25;
+        ui16 fontWidth = 8;
+        ui16 fontHeight = 8;
+        //эти два значения будут исползоваться для вывода шрифтов на экран
+        float ratioX;
+        float ratioY;
+        ui16 winWidth;
+        ui16 winHeight;
+    }window;
+
 #endif
 
-#define CPU_SMART_PRINT_MEMORY
 #ifdef CPU_SMART_PRINT_MEMORY
-#include <Windows.h>
+    #include <Windows.h>
 
-enum ConsoleColour
-{
-    BLACK, BLUE, GREEN, CYAN,
-    RED, MAGENTA, BROWN, LIGHTGRAY,
-    DARKGRAY, LIGHTBLUE, LIGHTGREEN,
-    LIGHTCYAN, LIGHTRED, LIGHTMAGENTA,
-    YELLOW, WHITE
-};
+    enum ConsoleColour
+    {
+        BLACK, BLUE, GREEN, CYAN,
+        RED, MAGENTA, BROWN, LIGHTGRAY,
+        DARKGRAY, LIGHTBLUE, LIGHTGREEN,
+        LIGHTCYAN, LIGHTRED, LIGHTMAGENTA,
+        YELLOW, WHITE
+    };
 
-static void setConsoleColor(int fontColour)
-{
-    WORD wColor = (fontColour & 0x0F);
-    SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), wColor);
-}
+    static void setConsoleColor(int fontColour)
+    {
+        WORD wColor = (fontColour & 0x0F);
+        SetConsoleTextAttribute(GetStdHandle(STD_OUTPUT_HANDLE), wColor);
+    }
 
-#define SET_DARK_GRAY setConsoleColor(8)
-#define SET_WHITE     setConsoleColor(15)
-#define RESET_COLOUR  setConsoleColor(7)
+    #define SET_DARK_GRAY setConsoleColor(8)
+    #define SET_WHITE     setConsoleColor(15)
+    #define RESET_COLOUR  setConsoleColor(7)
 
 #endif
+
+#ifdef CPU_PROFILER
+    #define COLLECT_PROFILER_INFORMATION(code) code
+#else
+    #define COLLECT_PROFILER_INFORMATION(code)
+#endif
+
 
 /*
 \brief Константы, определяющие работу процессора
@@ -56,37 +89,6 @@ static void setConsoleColor(int fontColour)
 */
 const Mcode ASM_HLT = 0 << 6 | 0 << 4 | 0 << 2 | 0x0; ///< Именно эта команда будет завершать работу процессора
 
-
-#ifdef CPU_GRAPH_MODE
-
-
-/**
-\brief Константы, задающие режим работы с графикой
-*/
-
-const ui32 VIDEO_MEMORY_PTR = 0x400;    ///< именно в сюда нужно будет писать данные в память, чтобы можно было что-то выводить на экран
-const ui16 STANDART_FONT_SIZE = 105;    ///< Размер шрифта в юнитах, данная константа получена через glutWidth(...)
-
-void drawFromVideoMemory();///< Функция, которая будет рисовать на экран все, что располагается в видео буффере
-
-
-/*
-\brief Описание структуры консольного окна
-*/
-struct Window
-{
-    ui16 nCols = 80;
-    ui16 nLines = 25;
-    ui16 fontWidth = 8;
-    ui16 fontHeight = 8;
-    //эти два значения будут исползоваться для вывода шрифтов на экран
-    float ratioX;
-    float ratioY;
-    ui16 winWidth;
-    ui16 winHeight;
-}window;
-
-#endif
 
 
 
@@ -147,7 +149,7 @@ void CPU::init(const InputParams inParam)
     myCPU.isGraphMode = inParam.useGraphMode;
     myCPU.ramSize = inParam.memorySize;
 
-    if (myCPU.ramSize > 1024 * 512)
+    if (myCPU.ramSize > (32 << 20)) //32 MB
     {
         myCPU.isValid = 0;
         logger.push("CPU error", "I'm not sure that you really want too much memory: %d.", myCPU.ramSize);
@@ -275,17 +277,17 @@ static inline void setBit(ui32* marchCode, ui8 n, bool value)
 \brief  Функция вычисления указателей на память, с которой будет работать команда
 \param  [in]  cmd   команда
 \param  [in,out]  dst  указатель на область памяти, отвечающее первому операнду в команде
-\param  [in,out]  src  указатель на область памяти, отвечающее второму операнду в команде
+\param  [in,out]  op1  указатель на область памяти, отвечающее второму операнду в команде
 \note   В случае ошибки будет брошен Assert_c.
-Пример работы: если команда имела вид mov eax,ebx, то в dst и src будут равны:
-dst = &CPU.Register.eax, src = &CPU.Register.ebx
+Пример работы: если команда имела вид mov eax,ebx, то в dst и op1 будут равны:
+dst = &CPU.Register.eax, op1 = &CPU.Register.ebx
 */
-void getOperandsPointer(Command* cmd, OperandUnion** dst, OperandUnion** src)
+void getOperandsPointer(Command* cmd, OperandUnion** dst, OperandUnion** op1, OperandUnion** op2 = nullptr)
 {
-    ui32** ptrOperands[2] = { (ui32**)dst, (ui32**)src };
+    ui32** ptrOperands[3] = { (ui32**)dst, (ui32**)op1, (ui32**)op2 };
     OperandType opType;
     ui32 offset = 0;
-    for (ui8 i = 0; i < cmd->code.bits.nOperands; i++)
+    for (ui8 i = 0; i < cmd->bits.nOperands; i++)
     {
         opType = getOperandType(*cmd, i);
         switch (opType)
@@ -322,20 +324,23 @@ void getOperandsPointer(Command* cmd, OperandUnion** dst, OperandUnion** src)
             break;
         case OPERAND_MEM_BY_REG:
             offset = myCPU.Register.eds + static_cast<ui32>(*getRegisterPtr(cmd->operand[i].ivalue));
+            if (cmd->bits.longCommand)
+                offset += cmd->extend[i];
             if (offset+sizeof(ui32)>= myCPU.ramSize)
             {
                 Assert_c(!"The command tries to access a nonexistent memory area!");
+                Disassembler::Instance().disasmCommand(*cmd, logger.getStream());
                 myCPU.interruptCode = 3;
                 break;
             }
             #ifdef CPU_GRAPH_MODE
-            if (CPU.isGraphMode && offset >= VIDEO_MEMORY_PTR && offset <= VIDEO_MEMORY_PTR + sizeof(ui8) * window.nCols * window.nLines)
+            if (myCPU.isGraphMode && offset >= VIDEO_MEMORY_PTR && offset <= VIDEO_MEMORY_PTR + sizeof(ui8) * window.nCols * window.nLines)
             {
-                CPU.isVideoMemoryChanged = 1;
-                CPU.ChangedPixel.x = offset - VIDEO_MEMORY_PTR;
-                CPU.ChangedPixel.y = CPU.ChangedPixel.x;
-                CPU.ChangedPixel.x %= window.nCols;
-                CPU.ChangedPixel.y /= window.nCols;
+                myCPU.isVideoMemoryChanged = 1;
+                myCPU.ChangedPixel.x = offset - VIDEO_MEMORY_PTR;
+                myCPU.ChangedPixel.y = myCPU.ChangedPixel.x;
+                myCPU.ChangedPixel.x %= window.nCols;
+                myCPU.ChangedPixel.y /= window.nCols;
             }
             #endif
             *ptrOperands[i] = (ui32*)&myCPU.RAM[offset];
@@ -362,7 +367,7 @@ static inline bool isZero(float num, float accuracy = 1E-7)
 /*
 \brief  Объвление дополнительных функций
 */
-#define DEF(name, mCode, vStr1, vStr2, code)\
+#define DEF(name, mCode, vStr1, vStr2, vStr3, code)\
 void run_##name(Command* cmd) code
 #include "Extend.h"
 #undef DEF
@@ -373,7 +378,7 @@ void run_##name(Command* cmd) code
 */
 CPU::PtrToFunction CPU::runFunction[] =
 {
-    #define DEF(name, machineCode, validStrOperand_1, validStrOperand_2, code) run_##name,
+    #define DEF(name, mCode, vStr1, vStr2, vStr3, code) run_##name,
     #include "Extend.h"
     #undef DEF
 };
@@ -394,11 +399,11 @@ CPUerror CPU::evaluate()
     while (*((Mcode*)ptr) != ASM_HLT)
     {
         ptr = &myCPU.RAM[myCPU.Register.eip];
-        cmd.code.marchCode = *((Mcode*)ptr);
+        cmd.bits.marchCode = *((Mcode*)ptr);
         ptr += sizeof(Mcode);
         myCPU.Register.eip += sizeof(Mcode);
 
-        for (int index = 0; index < cmd.code.bits.nOperands; index++)
+        for (int index = 0; index < cmd.bits.nOperands; index++)
         {
             OperandType opType = getOperandType(cmd, index);
             if (opType == OPERAND_REGISTER || opType == OPERAND_MEM_BY_REG)
@@ -406,6 +411,12 @@ CPUerror CPU::evaluate()
                 cmd.operand[index].ivalue = *((ui8*)ptr);
                 myCPU.Register.eip += sizeof(ui8);
                 ptr += sizeof(ui8);
+                if (cmd.bits.longCommand && opType == OPERAND_MEM_BY_REG)
+                {
+                    cmd.extend[index] = *((ui32*)ptr);
+                    myCPU.Register.eip += sizeof(ui32);
+                    ptr += sizeof(ui32);
+                }
             }
             if (opType == OPERAND_NUMBER || opType == OPERAND_MEMORY)
             {
@@ -418,21 +429,27 @@ CPUerror CPU::evaluate()
         if (myCPU.stepByStep)
         {
             Disassembler::Instance().disasmCommand(cmd, stdout);
+            Disassembler::Instance().disasmCommand(cmd, logger.getStream());
+            dump(stdout);
             dump(logger.getStream());
             system("pause");
             system("cls");
         }
 
 
-        ui32 indexCalledFunc = cmd.code.bits.opCode;
+        ui32 indexCalledFunc = cmd.bits.opCode;
         if (indexCalledFunc >= FUNCTION_TABLE_SIZE)
         {
             logger.push("CPU error", "Invalid machine code of command.");
             dump(logger.getStream());
             return CPU_ERROR_INVALID_COMMAND;
         }
+
+        COLLECT_PROFILER_INFORMATION(profiler.pushCommand(cmd, myCPU.Register.eip));
         runFunction[indexCalledFunc](&cmd);
         ptr = &myCPU.RAM[myCPU.Register.eip];
+
+        Disassembler::Instance().disasmCommand(cmd, logger.getStream());
 
         if (myCPU.interruptCode)
         {
@@ -508,6 +525,14 @@ CPUerror CPU::run(ui8* bytes, ui32 size, ui32 ptrStart)
     myCPU.stack.data = &myCPU.RAM[myCPU.Register.ess];
     myCPU.stack.size = myCPU.Register.esp;
     CPUerror errorCode = evaluate();
+
+    COLLECT_PROFILER_INFORMATION(
+        profiler.getScore();
+        profiler.makeReport("profiler reports/command_usage_frequency.txt", Profiler::Report::COMMAND_USAGE);
+        profiler.makeReport("profiler reports/sequence_usage.txt", Profiler::Report::COMMAND_SEQUENCE_USAGE);
+        profiler.makeReport("profiler reports/temperature.txt", Profiler::Report::REGION_TEMPERATURE);
+        profiler.makeReport("profiler reports/longest_repeated_string.txt", Profiler::Report::LONGEST_REPEATED_STRING);
+    )
     return errorCode;
 }
 
@@ -527,15 +552,25 @@ static inline void renderChar(float x, float y, const char c)
     glPopMatrix();
 }
 
+void RenderString(float x, float y, void *font, const char* string)
+{
+    char *c;
+
+    glColor3f(1,1,1);
+    glRasterPos2f(x, y);
+
+    glutBitmapString(font, (const unsigned char*)string);
+}
+
 
 void drawFromVideoMemory()
 {
     ///если раскомментировать этот кусок, то получится красивый эффект
     
-    glEnable(GL_BLEND);
-    glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
-    glColor4f(0, 0, 0, 0.01);
-    glRectf(0, 0, window.winWidth, window.winHeight);
+    //glEnable(GL_BLEND);
+    //glBlendFunc(GL_SRC_ALPHA, GL_ONE_MINUS_SRC_ALPHA);
+    //glColor4f(0, 0, 0, 0.01);
+    //glRectf(0, 0, window.winWidth, window.winHeight);
     
 
     
@@ -544,7 +579,6 @@ void drawFromVideoMemory()
     int line = myCPU.ChangedPixel.y;
     renderChar(col * window.fontWidth, window.winHeight - (line+1) * window.fontWidth, string[col + line * window.nCols]);
 
-    glFlush();
 }
 
 #endif

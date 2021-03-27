@@ -5,6 +5,9 @@
 using namespace Assembler;
 using std::unordered_map;
 
+bool isBranchCommand(const ui8 cmdOpCode);              //< Defined in ASM2LLVM.cpp
+ui32& getOperandConsistAddrInBrchCommand(Command& cmd); //< Defined in ASM2LLVM.cpp
+
 static i32 initInStream(const C_string inputFileName, i8** buffer, ui32* readBytes)
 {
     Assert_c(inputFileName);
@@ -38,8 +41,11 @@ void recalcAdrToCmdNumber(vector<Command>& commandList)
     typedef ui32 Addr;
     unordered_map<Addr,ui32> table;
     for (auto& cmd : commandList)
-        if (isBranchCommand(cmd.code.bits.opCode))
-            table[cmd.operand[0].ivalue] = 0;
+        if (isBranchCommand(cmd.bits.opCode))
+        {
+            const ui32& addr = getOperandConsistAddrInBrchCommand(cmd);
+            table[addr] = 0;
+        }
 
     Addr curAdr = 0;
     for (ui32 i = 0; i < commandList.size(); i++)
@@ -50,8 +56,11 @@ void recalcAdrToCmdNumber(vector<Command>& commandList)
     }
 
     for (auto& cmd : commandList)
-        if (isBranchCommand(cmd.code.bits.opCode))
-            cmd.operand[0].ivalue = table[cmd.operand[0].ivalue];
+        if (isBranchCommand(cmd.bits.opCode))
+        {
+            ui32& addr = getOperandConsistAddrInBrchCommand(cmd);
+            addr = table[addr];
+        }
 }
 
 TranslatorError Translator::parseBinaryStage(const C_string inputFile)
@@ -60,9 +69,15 @@ TranslatorError Translator::parseBinaryStage(const C_string inputFile)
     i8* bytes = NULL;
     ui32 nBytes = 0;
     isErrorOccur |= initInStream(inputFile, &bytes, &nBytes);
-    isErrorOccur |= m_disasembler.generateCommandList(m_commandList, bytes, nBytes) != ASM_OK;
+    isErrorOccur |= m_disasembler.generateCommandList(m_commandList, m_bytesFromDataSection, bytes, nBytes) != ASM_OK;
+
+    //читай описание метода generateCommandList()!
+    m_textSectionSize = m_commandList.back().extend[0];
+    m_commandList.pop_back();
+
     //теперь займемся пересчетом адресов в номера команд
     recalcAdrToCmdNumber(m_commandList);
+
     if(bytes)
         free(bytes);
     return isErrorOccur ? TR_ERROR_PARSE_BINARY : TR_OK;

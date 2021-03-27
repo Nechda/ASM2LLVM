@@ -1,6 +1,7 @@
 #include "Asm.h"
 #include "AsmTables.h"
 #include <ctype.h>
+#include <math.h>
 
 
 using namespace Assembler;
@@ -12,11 +13,13 @@ enum LexemaType
 {
     LEX_ERROR = -1,
     LEX_COMMAND = 1,
-    LEX_REGISTER = 2,
-    LEX_NUMBER = 3,
-    LEX_LABEL = 4,
-    LEX_MEMORY = 5,
-    LEX_MEM_BY_REG = 6
+    LEX_REGISTER,
+    LEX_NUMBER,
+    LEX_LABEL,
+    LEX_MEMORY,
+    LEX_MEM_BY_REG,
+    LEX_MEM_BY_REG_LONG,
+    LEX_VARIABLE
 };
 
 /*
@@ -71,10 +74,10 @@ static inline bool isNumber(const char* str)
     Assert_c(str);
     if (!str)
         return false;
-
+ 
     if (!isdigit(*str) && *str != '-')
         return false;
-
+ 
     if (strstr(str, "0x"))
         return true;
 
@@ -83,7 +86,7 @@ static inline bool isNumber(const char* str)
 
     while (*str)
     {
-        if (!isdigit(*str))
+        if (!isdigit(*str) && *str != '-')
             return false;
         str++;
     }
@@ -104,6 +107,8 @@ static LexemaType getLexemaType(const char* str)
 
     if (strchr(str, ':'))
         return LEX_LABEL;
+    if (strchr(str, '@'))
+        return LEX_VARIABLE;
 
     if (isNumber(str))
         return LEX_NUMBER;
@@ -121,10 +126,20 @@ static LexemaType getLexemaType(const char* str)
         result = LEX_MEMORY;
     }
 
+    char* divider = (char*)strchr(str, '+');
+    divider = !divider ? (char*)strchr(str, '-') : divider;
+    bool isSum = divider && divider[0] == '+';
+    if (divider) divider[0] = 0;
+    
     for (int i = 0; i < REGISTER_TABLE_SIZE; i++)
         if (!strcmp(str, registerTable[i].command))
         {
             result = result == LEX_ERROR ? LEX_REGISTER : LEX_MEM_BY_REG;
+            if (divider && result == LEX_MEM_BY_REG)
+            {
+                result = LEX_MEM_BY_REG_LONG;
+                divider[0] = isSum ? '+' : '-';
+            }
             break;
         }
 
@@ -149,34 +164,71 @@ static int genLableTable(const char* codeLine, Label* lables)
     static char buf[32] = {};
     ui32 nBytes = 0;
     LexemaType lxt;
+    ui32 variableSize = 0;
+    ui8 sizeFactor = 0;
     while (*codeLine)
     {
         sscanf(codeLine, "%s ", buf);
         codeLine += strlen(buf) + 1;
+
+        if (!memcmp(buf, ".text", 5))
+            continue;
+        if (!memcmp(buf, ".data", 5))
+            continue;
+
         lxt = getLexemaType(buf);
         switch (lxt)
         {
-        case LEX_COMMAND:
-            nBytes += sizeof(Mcode);
-            break;
+        
         case LEX_LABEL:
             lables->pos = nBytes;
             memcpy(lables->name, buf, 32);
             *(strchr(lables->name, ':')) = 0;
             lables++;
             break;
-        case LEX_NUMBER:
-            nBytes += sizeof(ui32);
+        case LEX_VARIABLE:
+            lables->pos = nBytes;
+            memcpy(lables->name, buf+1, 32);
+            lables++;
+
+            sscanf(codeLine, "%s ", buf);
+            if (buf[1] == 'b') sizeFactor = 1;
+            if (buf[1] == 'w') sizeFactor = 2;
+            if (buf[1] == 'q') sizeFactor = 4;
+            if (sizeFactor == 0) break;
+            while (codeLine[0]!='a')
+            {
+                sscanf(codeLine, "%s ", buf);
+                codeLine += strlen(buf) + 1;
+            }
+            if (memcmp("alloc", codeLine, 5))
+            {
+                logger.push("Syntax error", "Invalid variable declaration, sould be `alloc` after value.");
+                return -1;
+            }
+            codeLine += 6;
+
+            if (1 != sscanf(codeLine, "%d ", &variableSize))
+            {
+                logger.push("Syntax error", "Invalid number of bytes for variable");
+                return -1;
+            }
+            if (variableSize <= 0)
+            {
+                logger.push("Syntax error", "Array size couldnt be negative!");
+                return -1;
+            }
+            codeLine += ((int)floor(log10(variableSize)) + 1) + 1;
+            variableSize *= sizeFactor;
+
+            nBytes += variableSize;
             break;
-        case LEX_REGISTER:
-            nBytes++;
-            break;
-        case LEX_MEMORY:
-            nBytes += sizeof(ui32);
-            break;
-        case LEX_MEM_BY_REG:
-            nBytes += sizeof(ui8);
-            break;
+        case LEX_COMMAND:         nBytes += sizeof(Mcode);              break;
+        case LEX_NUMBER:          nBytes += sizeof(ui32);               break;
+        case LEX_REGISTER:        nBytes += sizeof(ui8);                break;
+        case LEX_MEMORY:          nBytes += sizeof(ui32);               break;
+        case LEX_MEM_BY_REG:      nBytes += sizeof(ui8);                break;
+        case LEX_MEM_BY_REG_LONG: nBytes += sizeof(ui8) + sizeof(ui32); break;
         default:
             nBytes += sizeof(ui32);
             break;
@@ -205,6 +257,25 @@ static int getLabel(char* labelName, Label* lables, ui32 nLables)
     return ASM_ERROR_CODE;
 }
 
+static inline ui32 getNumberFromString(const char* str)
+{
+    ui32 buffer = 0;
+    if (strchr(str, 'x'))
+    {
+        sscanf(str, "0x%X", &buffer);
+        return buffer;
+    }
+    if (strchr(str, '.'))
+    {
+        sscanf(str, "%f", &buffer);
+        return buffer;
+    }
+    else
+    {
+        sscanf(str, "%d", &buffer);
+        return buffer;
+    }
+}
 
 /*
 \brief   Функция парсит лексему из строки
@@ -252,21 +323,8 @@ static inline void* readNextLexema(char** ptrCodeLine, LexemaType* lxt)
             }
     if (*lxt == LEX_NUMBER)
     {
-        if (strchr(buffer, 'x'))
-        {
-            sscanf(buffer, "0x%X", &bufInt);
-            return &bufInt;
-        }
-        if (strchr(buffer, '.'))
-        {
-            sscanf(buffer, "%f", &bufInt);
-            return &bufInt;
-        }
-        else
-        {
-            sscanf(buffer, "%d", &bufInt);
-            return &bufInt;
-        }
+        bufInt = getNumberFromString(buffer);
+        return &bufInt;
     }
 
     return &buffer;
@@ -277,12 +335,14 @@ static inline void* readNextLexema(char** ptrCodeLine, LexemaType* lxt)
 \param  [in]  str       Указатель на строку с лексемой
 \param  [in]  lables    Указатель на таблицу с метками
 \param  [in]  nLables   Количество меток в таблице
+\param  [in,out] longMemoryOperand Указатель на буффер, куда будет записываться информация о смещении,
+        если тип лексемы был LEX_MEM_BY_REG_LONG
 \return В зависимости от типа лексемы будет возвращается следующие величины:
         Если тип лексемы LEX_MEMORY, то возвращается число, равное семещению регистра eip
         Если тип лексемы LEX_MEM_BY_REG, то возвращается код регистра
         В случае ошибки возвращается константа ASM_ERROR_CODE.
 */
-static int getMemoryOperand(char* str, Label* lables, ui32 nLables)
+static int getMemoryOperand(char* str, Label* lables, ui32 nLables,ui32* longMemoryOperand = nullptr)
 {
     Assert_c(str);
     if (!str)
@@ -303,6 +363,7 @@ static int getMemoryOperand(char* str, Label* lables, ui32 nLables)
 
     int resOperand = 0;
 
+    //проверяем, стоит ли число в скобках
     if (isNumber(str))
     {
         if (strchr(str, 'x'))
@@ -312,13 +373,45 @@ static int getMemoryOperand(char* str, Label* lables, ui32 nLables)
         return resOperand;
     }
 
+    //или это метка
     resOperand = getLabel(str, lables, nLables);
     if (resOperand != ASM_ERROR_CODE)
         return lables[resOperand].pos;
 
+    //а может быть регистр
     for (int i = 0; i < REGISTER_TABLE_SIZE; i++)
+    {
         if (!strcmp(str, registerTable[i].command))
             return registerTable[i].machineCode;
+    }
+
+    //и остается проверить только обращение long memory command
+    if (strchr(str, '+') || strchr(str, '-'))
+    {
+        char* divider = strchr(str, '+');
+        divider = !divider ? strchr(str, '-') : divider;
+        bool isSum = divider[0] == '+';
+        *(divider++) = 0;
+        if (isNumber(divider))
+        {
+            for (int i = 0; i < REGISTER_TABLE_SIZE; i++)
+                if (!strcmp(str, registerTable[i].command))
+                {
+                    if (!longMemoryOperand)
+                    {
+                        logger.push("Compilator error", "getMemoryOperand(...) longMemoryOperand contain NULL\n");
+                        return ASM_ERROR_CODE;
+                    }
+                    
+                    *longMemoryOperand = getNumberFromString(divider) * (isSum ? 1 : -1);
+                    *(--divider) = isSum ? '+' : '-';
+                    
+                    return registerTable[i].machineCode;
+                }
+        }
+        *(--divider) = isSum ? '+' : '-';
+    }
+
 
     return ASM_ERROR_CODE;
 }
@@ -332,12 +425,13 @@ static int getMemoryOperand(char* str, Label* lables, ui32 nLables)
 */
 static AsmError checkValidityOfOperands(Command cmd)
 {
-    char* validityStr[2] = { NULL, NULL };
+    char* validityStr[3] = { NULL, NULL };
     for (int i = 0; i < COMMAND_TABLE_SIZE; i++)
-        if (commandTable[i].machineCode >> 8 == cmd.code.bits.opCode)
+        if (commandTable[i].machineCode >> 10 == cmd.bits.opCode)
         {
             validityStr[0] = commandTable[i].validFirstOperand;
             validityStr[1] = commandTable[i].validSecondOperand;
+            validityStr[2] = commandTable[i].validThirdOperand;
         }
 
     if (validityStr[0] == NULL)
@@ -345,7 +439,7 @@ static AsmError checkValidityOfOperands(Command cmd)
 
     const char* opTypeStr = "RNMB";
     OperandType opType;
-    for (int i = 0; i < cmd.code.bits.nOperands; i++)
+    for (int i = 0; i < cmd.bits.nOperands; i++)
     {
         opType = getOperandType(cmd, i);
         if (!strchr(validityStr[i], opTypeStr[(ui8)opType]))
@@ -374,13 +468,100 @@ static AsmError genBytes(const char* codeLine, Label* lables, ui32 nLables, ui8*
     char* ptr = NULL;
     ui8* bytes = ptrBytes;
     int currentPosition = 0;
+    ui32 textSectionSize = 0;
     LexemaType lxt;
     Command cmd;
+    enum {CODE_SECTION, DATA_SECTION} currentSection = CODE_SECTION;
+    if (memcmp(".text", codeLine, 5))
+    {
+        logger.push("Compilator error",
+            "First seection should be .text");
+        return ASM_ERROR_INVALID_SYNTAX;
+    }
     while (*codeLine)
     {
+        if (!memcmp(".text", codeLine, 5))
+        {
+            codeLine += 6;
+            continue;
+        }
+        if (!memcmp(".data", codeLine, 5))
+        {
+            textSectionSize = bytes - ptrBytes;
+            codeLine += 6;
+            currentSection = DATA_SECTION;
+            continue;
+        }
+        
+        
         ptr = (char*)readNextLexema((char**)&codeLine, &lxt);
         if (lxt == LEX_LABEL)
             continue;
+        if (lxt == LEX_VARIABLE)
+        {
+            if (currentSection != DATA_SECTION)
+            {
+                logger.push("Compilator error",
+                            "You try to create variable in .text section! "
+                            "Try to declare it in .data section.");
+                return ASM_ERROR_INVALID_SYNTAX;
+            }
+            const char* modifier = NULL;
+            const char* dictionary = "bwq";
+            if (codeLine[0] == 'd' && (modifier = strchr("bwq", codeLine[1])))
+            {
+                codeLine += 3;
+                ui8 bytesForVariable = 1 << (modifier - dictionary);
+                ui32 nElements = 0;
+                do
+                {
+                    ptr = (char*)readNextLexema((char**)&codeLine, &lxt);
+                    if (lxt != LEX_NUMBER && codeLine[0] != 'a')
+                    {
+                        logger.push("Compilator error", "Expected size of variable...");
+                        return ASM_ERROR_INVALID_SYNTAX;
+                    }
+                    if (lxt == LEX_NUMBER)
+                    {
+                        if (bytesForVariable == 1) *(( ui8*)bytes) = *((ui32*)ptr);
+                        if (bytesForVariable == 2) *((ui16*)bytes) = *((ui32*)ptr);
+                        if (bytesForVariable == 4) *((ui32*)bytes) = *((ui32*)ptr);
+                        bytes += bytesForVariable;
+                        nElements++;
+                    }
+                    if (!memcmp(codeLine, "alloc", 5)) // codeLine == "alloc..."
+                    {
+                        codeLine += 6;
+                        ui32 allocatedMemory = 0;
+                        
+                        sscanf(codeLine, "%d ", &allocatedMemory);
+                        codeLine += ((int)floor(log10(allocatedMemory)) + 1) + 1;
+                        if (allocatedMemory < nElements)
+                        {
+                            logger.push("Compilator error", "You allocate not enougth memory for your variable.");
+                            return ASM_ERROR_INVALID_SYNTAX;
+                        }
+                        else
+                        {
+                            allocatedMemory -= nElements;
+                            allocatedMemory *= bytesForVariable;
+                            while (allocatedMemory--)
+                            {
+                                *((ui8*)bytes) = 0;
+                                bytes += sizeof(ui8);
+                            }
+                            break;
+                        }
+                    }
+                } while (true);
+                continue;
+            }
+            else
+            {
+                logger.push("Compilator error", "Variable undefined variable specificator: %c%c", ptr[0],ptr[1]);
+                return ASM_ERROR_INVALID_SYNTAX;
+            }
+        }
         if (lxt != LEX_COMMAND)
         {
             logger.push("Compilator error", "Lexema: \"%s\" is not command, but should be...", ptr);
@@ -392,9 +573,17 @@ static AsmError genBytes(const char* codeLine, Label* lables, ui32 nLables, ui8*
             return ASM_ERROR_CANT_READ_LEXEMA;
         }
 
-        cmd.code.marchCode = *((Mcode*)ptr);
+        if (lxt == LEX_COMMAND && currentSection != CODE_SECTION)
+        {
+            logger.push("Compilator error",
+                "You try to write command in .data section! "
+                "Try to declare it in .text section.");
+            return ASM_ERROR_INVALID_SYNTAX;
+        }
+
+        cmd.bits.marchCode = *((Mcode*)ptr);
         currentPosition += sizeof(Mcode);
-        for (int i = 0; i < cmd.code.bits.nOperands; i++)
+        for (int i = 0; i < cmd.bits.nOperands; i++)
         {
             ptr = (char*)readNextLexema((char**)&codeLine, &lxt);
             if (!ptr)
@@ -425,6 +614,21 @@ static AsmError genBytes(const char* codeLine, Label* lables, ui32 nLables, ui8*
                 setOperandType(cmd, i, lxt == LEX_MEMORY ? OPERAND_MEMORY : OPERAND_MEM_BY_REG);
                 currentPosition += lxt == LEX_MEMORY ? sizeof(ui32) : sizeof(ui8);
             }
+            if (lxt == LEX_MEM_BY_REG_LONG)
+            {
+                ui32 offsetOperand = 0;
+                cmd.operand[i].ivalue = getMemoryOperand(ptr, lables, nLables, &offsetOperand);
+                cmd.extend[i] = offsetOperand;
+                cmd.bits.longCommand = 1;
+                if (cmd.operand[i].ivalue == ASM_ERROR_CODE)
+                {
+                    logger.push("Compilator error", "Invalid link to memory: \"%s\" ", ptr);
+                    return ASM_ERROR_INVALID_OPERAND_SYNTAX;
+                }
+                setOperandType(cmd, i, OPERAND_MEM_BY_REG);
+                currentPosition += sizeof(ui8);
+                currentPosition += sizeof(ui32);
+            }
             if (lxt == LEX_LABEL)
             {
                 logger.push("Compilator error", "Invalid operand: \"%s\" ", ptr);
@@ -445,7 +649,7 @@ static AsmError genBytes(const char* codeLine, Label* lables, ui32 nLables, ui8*
 
         }
 
-        *((Mcode*)bytes) = cmd.code.marchCode;
+        *((Mcode*)bytes) = cmd.bits.marchCode;
         bytes += sizeof(Mcode);
 
 
@@ -458,12 +662,12 @@ static AsmError genBytes(const char* codeLine, Label* lables, ui32 nLables, ui8*
         }
         if (errorCode == ASM_ERROR_INVALID_MACHINE_CODE)
         {
-            logger.push("Compilator error", "Has been generated invalid machine code: 0x%X", cmd.code.marchCode);
+            logger.push("Compilator error", "Has been generated invalid machine code: 0x%X", cmd.bits.marchCode);
             return ASM_ERROR_INVALID_MACHINE_CODE;
         }
 
 
-        for (int i = 0; i < cmd.code.bits.nOperands; i++)
+        for (int i = 0; i < cmd.bits.nOperands; i++)
         {
             OperandType opType = getOperandType(cmd, i);
             if (opType == OPERAND_NUMBER || opType == OPERAND_MEMORY)
@@ -475,9 +679,17 @@ static AsmError genBytes(const char* codeLine, Label* lables, ui32 nLables, ui8*
             {
                 *((ui8*)bytes) = cmd.operand[i].ivalue;
                 bytes += sizeof(ui8);
+                if (cmd.bits.longCommand && opType == OPERAND_MEM_BY_REG)
+                {
+                    *((ui32*)bytes) = cmd.extend[i];
+                    bytes += sizeof(ui32);
+                }
             }
         }
     }
+    if (currentSection == CODE_SECTION)
+        textSectionSize = bytes - ptrBytes;
+    *((ui32*)bytes) = textSectionSize;
     return ASM_OK;
 }
 
@@ -514,7 +726,52 @@ static AsmError throwMachineCodeIntoStream(ui8* bytes, ui32 nBytes, FILE* outStr
     return ASM_OK;
 }
 
+static char* delSpecialSymbols(const char* code, ui32& nLabels)
+{
+    int strLen = strlen(code);
+    char* codeLine = (C_string)calloc(strLen + 2, sizeof(ui8));
+    Assert_c(codeLine);
+    if (!codeLine)
+        return NULL;
+    ui8 c[2] = {};
+    bool pingpong = 0;
+    int index = 0;
+    bool isComment = 0;
+    for (int i = 0; i < strLen; i++)
+    {
+        c[pingpong] = code[i];
+        if (c[pingpong] == ':' || c[pingpong] == '@')
+            nLabels++;
 
+        if (c[pingpong] == ';')
+        {
+            while (i < strLen && code[i] != '\n')
+                i++;
+            if (i == strLen)
+                break;
+            c[pingpong] = code[i];
+        }
+
+        #define isValidChr(x) (isalpha(x) || isdigit(x) || strchr(":_[].-;+-@" , x) && x )
+
+        if (!isValidChr(c[pingpong]) && !isValidChr(c[pingpong ^ 1]))
+            continue;
+        else if (isValidChr(code[i]))
+            codeLine[index] = code[i];
+        else
+            codeLine[index] = ' ';
+        index++;
+        #undef isValidChr(x)
+
+        pingpong ^= 1;
+    }
+    if (codeLine[index - 1] != ' ')
+        codeLine[index++] = ' ';
+    codeLine[index++] = 0;
+    codeLine = (C_string)realloc(codeLine, index * sizeof(ui8));
+    Assert_c(codeLine);
+    return codeLine;
+}
 
 AsmError Compilator::compile(const char* code, FILE* outStream)
 {
@@ -527,56 +784,13 @@ AsmError Compilator::compile(const char* code, FILE* outStream)
 
 
     //Из строки с исходным кодом программы удаляем все лишние символы,
-    //оставляя только лексемы языка. В качестве разделителя используем пробел.
-    C_string codeLine = NULL;
+    //которые никак не используюся в ассемблере. Также удаляются дополнительные
+    //пробелы, символы перевода строки, табуляции и т.д.
     ui32 nLabels = 0;
-    {
-        int strLen = strlen(code);
-        codeLine = (C_string)calloc(strLen + 2, sizeof(ui8));
-        Assert_c(codeLine);
-        if (!codeLine)
-            return ASM_ERROR_OUT_OF_MEMORY;
-        ui8 c[2] = {};
-        bool pingpong = 0;
-        int index = 0;
-        bool isComment = 0;
-        for (int i = 0; i < strLen; i++)
-        {
-            c[pingpong] = code[i];
-            if (c[pingpong] == ':')
-                nLabels++;
-
-            if (c[pingpong] == ';')
-            {
-                while (i < strLen && code[i] != '\n')
-                    i++;
-                if (i == strLen)
-                    break;
-                c[pingpong] = code[i];
-            }
-
-            #define isValidChr(x) (isalpha(x) || isdigit(x) || strchr(":_[].-;" , x) && x )
-
-            if (!isValidChr(c[pingpong]) && !isValidChr(c[pingpong ^ 1]))
-                continue;
-            else if (isValidChr(code[i]))
-                codeLine[index] = code[i];
-            else
-                codeLine[index] = ' ';
-            index++;
-            #undef isValidChr(x)
-
-            pingpong ^= 1;
-        }
-        if (codeLine[index - 1] != ' ')
-            codeLine[index++] = ' ';
-        codeLine[index++] = 0;
-        codeLine = (C_string)realloc(codeLine, index * sizeof(ui8));
-        Assert_c(codeLine);
-        if (!codeLine)
-            return ASM_ERROR_OUT_OF_MEMORY;
-    }
-
+    C_string codeLine = delSpecialSymbols(code, nLabels);
+    Assert_c(codeLine);
+    if (!codeLine)
+        return ASM_ERROR_OUT_OF_MEMORY;
 
 
     // Генерируем таблицу меток
@@ -587,7 +801,10 @@ AsmError Compilator::compile(const char* code, FILE* outStream)
         free(codeLine);
         return ASM_ERROR_OUT_OF_MEMORY;
     }
+
     ui32 nBytes = genLableTable(codeLine, lables);
+    //резервируем место для записи в секцию .data размера секции .text
+    nBytes += sizeof(ui32);
     Assert_c(nBytes != ASM_ERROR_CODE);
     if (nBytes == ASM_ERROR_CODE)
     {

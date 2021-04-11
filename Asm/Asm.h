@@ -106,7 +106,7 @@ namespace Assembler
         public:
             static AsmError compile(const char* code, FILE* outStream);
         private:
-            Compilator();
+            Compilator() {};
             Compilator(const Compilator&) = delete;
             Compilator& operator=(const Compilator&) = delete;
             ~Compilator() {};

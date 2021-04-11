@@ -31,12 +31,7 @@ static C_string getCommandName(Command cmd)
             tmp = commandTable[i].command;
             break;
         }
-    if (tmp.size())
-    {
-        std::transform(tmp.begin(), tmp.end(), tmp.begin(), [](unsigned char c) { return std::tolower(c); });
-        return (C_string)tmp.c_str();
-    }
-    return NULL;
+    return tmp.size() ? (C_string)tmp.c_str() : NULL;
 }
 
 /*

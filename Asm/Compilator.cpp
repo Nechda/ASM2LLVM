@@ -56,12 +56,6 @@ void prepareCompilatorsTable()
     }
 }
 
-Compilator::Compilator()
-{
-    prepareCompilatorsTable();
-}
-
-
 
 /*
 \brief Функция проверяет, является ли строка числом

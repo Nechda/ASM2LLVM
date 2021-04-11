@@ -11,9 +11,21 @@
 
 using namespace Assembler;
 
+static constexpr Lexema generetaCommand(Lexema origin)
+{
+    Lexema result{ origin };
+    for (ui8 i = 0; i < 10 && origin.command[i]; i++)
+    {
+        if ('A' <= result.command[i] && result.command[i] <= 'Z')
+            result.command[i] -= 'A' - 'a';
+    }
+    return result;
+}
+
+
 Lexema commandTable[] = {
     #define DEF(name, mCode, vStr1, vStr2, vStr3, code) \
-        {#name, mCode, vStr1, vStr2, vStr3},
+        generetaCommand({#name, mCode, vStr1, vStr2, vStr3}),
     #include "Extend.h"
     #undef DEF
 };

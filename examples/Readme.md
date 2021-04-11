@@ -5,6 +5,3 @@
 * factorial.asm -- подсчет факториала числа через цикл.
 * simple_stack.asm --- вычисляет произведение двух чисел, лежащих на стеке.
 * variables.asm -- демонстрация работы с переменными.
-
-## Note:
-Программа sqr.asm была сгенерирована [компилятором](https://github.com/Nechda/Techno_track/tree/master/Programming%20language) простенького языка программирования.

@@ -18,11 +18,7 @@
 #define EDI_REG_INDEX 5
 #define ESP_REG_INDEX 6
 #define EBP_REG_INDEX 7
-#define EPI_REG_INDEX 8
-#define EFL_REG_INDEX 9
-#define ECS_REG_INDEX 10
-#define EDS_REG_INDEX 11
-#define ESS_REG_INDEX 12
+#define LR0_REG_INDEX 9
 
 #define BYTES_IN_REGISTER sizeof(ui32)
-#define COUNT_REGISTERS 13
+#define COUNT_REGISTERS 41

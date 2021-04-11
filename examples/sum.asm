@@ -1,5 +1,6 @@
-in eax
-in ebx
-add eax, ebx
-out ebx
-hlt
+.text
+    in ebx
+    in ecx
+    add eax, ebx, ecx
+    out eax
+    hlt

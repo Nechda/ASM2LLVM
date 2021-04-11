@@ -1,9 +1,9 @@
-in eax
-mov ebx, 1
-lbl_loop:
-mul ebx, eax
-sub eax, 1
-cmp eax, 1
-jne lbl_loop
-out ebx
-hlt
+.text
+    in eax
+    mov ebx, 1
+    iteration:
+        mul ebx, eax, ebx
+        sub eax, eax, 1
+    jne eax, 1, iteration
+    out ebx
+    hlt

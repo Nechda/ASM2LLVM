@@ -37,10 +37,9 @@ void* lazyFunctionCreator(const string& funcName)
 
 
 
-/// эти переменные объявлены в Interpreted.cpp
+/// эти переменные объявлены в staticLib.cpp
 extern "C" ui32* regTable;
 extern "C" ui8* memory;
-
 
 
 
@@ -64,11 +63,11 @@ void Translator::runJIT()
     }
     ee->InstallLazyFunctionCreator(lazyFunctionCreator);
 
-    regTable = &CPU::myCPU.Register.eax;
-    memory = &CPU::myCPU.RAM[0];
+    regTable = &CPU::context.Register.eax;
+    memory = &CPU::context.RAM[0];
 
-    ee->addGlobalMapping(m_reg_table, &CPU::myCPU.Register.eax);
-    ee->addGlobalMapping(m_memory, &CPU::myCPU.RAM[0]);
+    ee->addGlobalMapping(m_reg_table, &CPU::context.Register.eax);
+    ee->addGlobalMapping(m_memory, &CPU::context.RAM[0]);
     ee->finalizeObject();
 
 
@@ -78,4 +77,18 @@ void Translator::runJIT()
 
     printf("CPU dump result:\n");
     CPU::Instance().dump(stdout);
+
+
+    FILE* output = fopen("memory.bin", "wb");
+    Assert_c(output);
+    if (!output)
+    {
+        logger.push("Dumping memory", "Cant open file for dumping memory.");
+        return;
+    }
+
+    fwrite(memory, sizeof(ui8), CPU::context.ramSize, output);
+
+    printf("Memory dump has wroten into memory.bin\n");
+    fclose(output);
 }

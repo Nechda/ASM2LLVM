@@ -69,7 +69,7 @@ TranslatorError Translator::parseBinaryStage(const C_string inputFile)
     i8* bytes = NULL;
     ui32 nBytes = 0;
     isErrorOccur |= initInStream(inputFile, &bytes, &nBytes);
-    isErrorOccur |= m_disasembler.generateCommandList(m_commandList, m_bytesFromDataSection, bytes, nBytes) != ASM_OK;
+    isErrorOccur |= Disassembler::generateCommandList(m_commandList, m_bytesFromDataSection, bytes, nBytes) != ASM_OK;
 
     //читай описание метода generateCommandList()!
     m_textSectionSize = m_commandList.back().extend[0];

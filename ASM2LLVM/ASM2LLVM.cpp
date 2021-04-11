@@ -3,6 +3,7 @@
 #include <llvm/Transforms/Scalar.h>
 #include <llvm/Transforms/InstCombine/InstCombine.h>
 #include <llvm/Transforms/AggressiveInstCombine/AggressiveInstCombine.h>
+#include <llvm/Transforms/Scalar/DeadStoreElimination.h>
 
 
 using namespace Assembler;
@@ -58,8 +59,9 @@ TranslatorError Translator::codePrintStage(const C_string outFile)
 
     if (stream != stdout)
         printf("LLVM IR code has wrote in %s file.\n", outFile);
+    else
+        system("pause");
 
-    system("pause");
     return errorCode;
 }
 
@@ -88,6 +90,9 @@ TranslatorError Translator::optimizationStage()
     // create a new pass manager
     legacy::FunctionPassManager* TheFPM = new legacy::FunctionPassManager(m_module);
 
+    // transform sets of stores into memsets
+    TheFPM->add(createMemCpyOptPass());
+
     // deleting unreachable code & merging consecutive blocks
     TheFPM->add(createCFGSimplificationPass());
 
@@ -98,6 +103,9 @@ TranslatorError Translator::optimizationStage()
 
     // multiple use lexically identical expressions
     TheFPM->add(createNewGVNPass());
+
+    // deleting a lot of stores
+    TheFPM->add(createDeadStoreEliminationPass());
 
     TheFPM->add(createEarlyCSEPass());
     TheFPM->add(createCFGSimplificationPass());

@@ -4,18 +4,18 @@
 #include <iostream>
 
 template<typename T>
-class circular_buffer
+class CircularBuffer
 {
     private:
         T* m_array;
         ui32 m_size;
         ui32 m_front;
         ui32 m_back;
-        circular_buffer() : m_array(nullptr) {};
-        circular_buffer(const circular_buffer&) = delete;
-        circular_buffer& operator=(const circular_buffer) = delete;
+        CircularBuffer() : m_array(nullptr) {};
+        CircularBuffer(const CircularBuffer&) = delete;
+        CircularBuffer& operator=(const CircularBuffer) = delete;
     public:
-        circular_buffer(ui32 size) :
+        CircularBuffer(ui32 size) :
             m_size(size > 2 ? size : 2),
             m_array(nullptr),
             m_front(0),
@@ -23,7 +23,7 @@ class circular_buffer
         {
             m_array = new T[m_size];
         }
-        ~circular_buffer()
+        ~CircularBuffer()
         {   
             delete[] m_array;
         }

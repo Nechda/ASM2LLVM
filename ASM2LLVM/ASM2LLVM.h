@@ -85,7 +85,6 @@ class Translator
         Module* m_module;
         IRBuilder<> m_builder;
 
-        Disassembler& m_disasembler;
     public:
         static Translator& Instance()
         {
@@ -101,8 +100,7 @@ class Translator
         void runJIT();
     private:
         Translator() :
-            m_builder(m_context),
-            m_disasembler(Disassembler::Instance()) {};
+            m_builder(m_context){};
         Translator(const Translator&) = delete;
         Translator& operator=(const Translator&) = delete;
 
@@ -116,10 +114,12 @@ class Translator
 
         AsmError LLVMPareseCommand(const Command& cmd, bool& isBrhCommand, const BlockInfo& blockInfo);
         AsmError parseExternalFunctions(const Command& cmd);
-        AsmError parseOperands(const Command& cmd);
-        AsmError parseGeneral(const Command& cmd, bool& isEndBBCmd);
-        AsmError parseBranches(const Command& cmd, bool& isEndBBCmd);
+        
+            AsmError parseOperands(const Command& cmd, const ui8 offsetInReg = 0);
+            AsmError parseGeneral(const Command& cmd, bool& isEndBBCmd);
+            AsmError parseBranches(const Command& cmd, bool& isEndBBCmd);
 
+            AsmError simd_parseCommand(const Command& cmd);
         
         template<typename Ret, typename ... Args>
         using pMethod = Ret (IRBuilder<>::*)(Args ...);

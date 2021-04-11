@@ -66,7 +66,7 @@ namespace Assembler
 
     enum CommandType
     {
-        #define DEF(name, mCode, vStr1, vSrt2, code)\
+        #define DEF(name, mCode, vStr1, vSrt2, vSrt3, code)\
             CMD_##name,
             #include "Extend.h"
         #undef DEF
@@ -90,34 +90,26 @@ namespace Assembler
     class Disassembler
     {
         public:
-            static Disassembler& Instance()
-            {
-                static Disassembler theInstance;
-                return theInstance;
-            }
-            AsmError generateCommandList(vector<Command>& commands, vector<ui8>& bytesFromDataSection, i8* bytes, i32 nBytes);
-            AsmError disasm(const ui8* code, int size, FILE* stream);
-            void disasmCommand(Command cmd, FILE* stream);
+            static AsmError generateCommandList(vector<Command>& commands, vector<ui8>& bytesFromDataSection, i8* bytes, i32 nBytes);
+            static AsmError disasm(const ui8* code, int size, FILE* stream);
+            static void disasmCommand(Command cmd, FILE* stream);
         private:
+            static AsmError getCode(ui8* bytes, ui32 nBytes, FILE* outStream);
             Disassembler() {};
             Disassembler(const Disassembler&) = delete;
             Disassembler& operator=(const Disassembler&) = delete;
-            AsmError getCode(ui8* bytes, ui32 nBytes, FILE* outStream);
+            ~Disassembler() {};
     };
 
     class Compilator
     {
         public:
-            static Compilator& Instance()
-            {
-                static Compilator theInstance;
-                return theInstance;
-            }
-            AsmError compile(const char* code, FILE* outStream);
+            static AsmError compile(const char* code, FILE* outStream);
         private:
             Compilator();
             Compilator(const Compilator&) = delete;
             Compilator& operator=(const Compilator&) = delete;
+            ~Compilator() {};
     };
 
 }

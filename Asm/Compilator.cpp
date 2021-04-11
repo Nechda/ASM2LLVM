@@ -657,7 +657,7 @@ static AsmError genBytes(const char* codeLine, Label* lables, ui32 nLables, ui8*
         if (errorCode == ASM_ERROR_INVALID_OPERAND_TYPE_FOR_COMMAND)
         {
             logger.push("Compilator error", "Invalid type of operand for current command.");
-            Disassembler::Instance().disasmCommand(cmd, logger.getStream());
+            Disassembler::disasmCommand(cmd, logger.getStream());
             return ASM_ERROR_INVALID_OPERAND_TYPE_FOR_COMMAND;
         }
         if (errorCode == ASM_ERROR_INVALID_MACHINE_CODE)

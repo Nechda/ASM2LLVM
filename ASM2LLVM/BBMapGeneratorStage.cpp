@@ -92,6 +92,7 @@ TranslatorError Translator::genBBStructureStage()
     {
         if (m_commandList[i].bits.reserved)
             funcDescriptors.push_back({ i, 0 }); //в начале все базовые блоки принадлежат "нулевой" функции
+
         m_commandList[i].bits.reserved = 0;
     }
     funcDescriptors.push_back(pair<ui32, ui32>(m_commandList.size(),1));
